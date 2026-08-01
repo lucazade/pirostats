@@ -555,7 +555,7 @@ def run_profile(cfg_path: Path | None) -> None:
     overhead["mtime checks"] = (time.perf_counter() - t) * 1000
 
     t = time.perf_counter()
-    needs_periph_rescan(hw, cfg)
+    needs_periph_rescan(hw, cfg, state)
     overhead["needs_periph_rescan"] = (time.perf_counter() - t) * 1000
 
     t = time.perf_counter()
@@ -773,8 +773,9 @@ def run_daemon(cfg_path: Path | None) -> None:
             css_mtime, overlay_mtime = new_css_mtime, new_overlay_mtime
             css = _read_css(css_path, overlay)
 
-        # Retry peripherals periodically when not found
-        if needs_periph_rescan(hw, cfg):
+        # Retry peripherals periodically when not found, or found at a path
+        # that has since died under them
+        if needs_periph_rescan(hw, cfg, state):
             if time.monotonic() - hw.periph_scan_ts >= PERIPH_RESCAN_INTERVAL:
                 hw = rescan_peripherals(hw, cfg)
                 fmt = PanelFormatter(cfg, hw)  # rebuild if hw changed

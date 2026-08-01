@@ -201,6 +201,8 @@ class _BatteryPeriphCache:
     name: str = ""
     perc: str = ""
     ts: float = float("-inf")
+    path: str = ""       # UPower path these readings came from (unused by Bolt)
+    gone: bool = False   # last read found nothing there: the path needs rediscovering
 
 @dataclass
 class _NetInfoCache:
@@ -399,13 +401,20 @@ def rescan_peripherals(hw: HardwareInfo, cfg: Config) -> HardwareInfo:
 _NET_GATED_ITEMS = ("net_speed", "net_device_ip", "net_ip", "net_device")
 
 
-def needs_periph_rescan(hw: HardwareInfo, cfg: Config) -> bool:
+def needs_periph_rescan(hw: HardwareInfo, cfg: Config, state: DaemonState) -> bool:
     # Bolt devices are configured statically — no UPower discovery needed.
     wants_mouse = cfg.panel.has("battery_mouse") or cfg.tooltip.has("battery_mouse")
     wants_kbd   = cfg.panel.has("battery_kbd")   or cfg.tooltip.has("battery_kbd")
-    if wants_mouse and hw.battery_mouse_id is None and cfg.battery.mouse_bolt is None:
+    # An id we hold can also be stale, not just missing: UPower drops a
+    # peripheral's object path when its receiver is re-enumerated (suspend,
+    # replug) and numbers the replacement one higher, so the path resolved at
+    # startup answers nothing until it is rediscovered. `gone` is that signal —
+    # a device merely switched off keeps answering and doesn't set it.
+    if wants_mouse and cfg.battery.mouse_bolt is None and (
+            hw.battery_mouse_id is None or state.battery_mouse_cache.gone):
         return True
-    if wants_kbd and hw.battery_kbd_id is None and cfg.battery.kbd_bolt is None:
+    if wants_kbd and cfg.battery.kbd_bolt is None and (
+            hw.battery_kbd_id is None or state.battery_kbd_cache.gone):
         return True
     # net_device is detected once at startup: if the daemon started before the
     # network was up, it stays None. Retries as long as an item needs it.
@@ -1654,17 +1663,24 @@ def _read_battery_periph(
     upower_path: str,
     name_override: Optional[str],
 ) -> Optional[BatteryPeriph]:
+    # A rescan moves the device to a fresh object path: the name and level
+    # cached from the old one describe a device we no longer read. Drop them so
+    # the next read repopulates both, name included.
+    if upower_path != cache.path:
+        cache.path, cache.name, cache.perc, cache.ts = upower_path, "", "", float("-inf")
     if time.monotonic() - cache.ts >= PERIPH_CACHE_TTL:
         props = _upower_device_props(upower_path, ("Percentage", "Model"))
-        if props is None:
-            cache.perc = ""
-        else:
-            if not cache.name and props.get("Model"):
-                cache.name = props["Model"]
-            pct = props.get("Percentage")
-            # 0% (or missing) = device disconnected: leave perc empty so it
-            # disappears from the tooltip.
-            cache.perc = f"{int(pct)}%" if pct else ""
+        pct = props.get("Percentage") if props else None
+        # A vanished object path is not an error on the bus: the proxy still
+        # builds and every property reads back None. That — not `props is None`
+        # — is what tells us the path died and needs rediscovering. A device
+        # merely switched off keeps answering, with Percentage 0.
+        cache.gone = pct is None
+        if props and not cache.name and props.get("Model"):
+            cache.name = props["Model"]
+        # 0% (or missing) = device disconnected: leave perc empty so it
+        # disappears from the tooltip.
+        cache.perc = f"{int(pct)}%" if pct else ""
         cache.ts = time.monotonic()
     if not cache.perc:
         return None
