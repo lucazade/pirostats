@@ -162,10 +162,12 @@ def check_and_notify(r: Readings, cfg: Config, state: NotifState, hw: HardwareIn
                 _send("PiroStats", f"{lb.get('battery_sys', 'Battery')} {bat.perc}", icon="battery-caution")
             state.battery_sys[bat.id] = over
 
-    # Peripheral batteries (notify when *below* threshold)
+    # Peripheral batteries (notify when *at or below* threshold, like battery_sys
+    # above: the colour turns red at <= its threshold, so a strict < here left the
+    # threshold reading itself red with no alert behind it)
     if c.battery_mouse and r.battery_mouse and r.battery_mouse.perc:
         pv   = int(r.battery_mouse.perc.rstrip("%"))
-        over = 0 < pv < n.battery_mouse   # ignore 0%: device disconnected
+        over = 0 < pv <= n.battery_mouse   # ignore 0%: device disconnected
         if over and not state.battery_mouse:
             name = r.battery_mouse.name or lb.get("battery_mouse", "Mouse")
             _send("PiroStats", f"{name}: {r.battery_mouse.perc}", icon="battery-caution")
@@ -173,7 +175,7 @@ def check_and_notify(r: Readings, cfg: Config, state: NotifState, hw: HardwareIn
 
     if c.battery_kbd and r.battery_kbd and r.battery_kbd.perc:
         pv   = int(r.battery_kbd.perc.rstrip("%"))
-        over = 0 < pv < n.battery_kbd     # ignore 0%: device disconnected
+        over = 0 < pv <= n.battery_kbd    # ignore 0%: device disconnected
         if over and not state.battery_kbd:
             name = r.battery_kbd.name or lb.get("battery_kbd", "Keyboard")
             _send("PiroStats", f"{name}: {r.battery_kbd.perc}", icon="battery-caution")

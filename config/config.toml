@@ -147,11 +147,19 @@ mem_braille_length = 10
 # raw value), so its colour is free to mark "you were working here" well below
 # the point where the number itself deserves attention.
 #
-# disk_usage keeps a wide mid band for the opposite reason: it is the only slow,
-# monotone value here. Everything else is volatile enough that you read it now
-# and a warning ahead of time buys nothing, while a disk only fills up, so the
-# useful signal is the one that arrives weeks early. A mid band starting just
-# 10 points under the alert would say nothing the alert isn't about to say.
+# The usage bands split on what the percentage counts, not on the fact that it is
+# one. A rate (cpu_usage, gpu_*_usage, top_process_cpu) is healthy at full scale —
+# a CPU pinned while compiling is doing its job and nothing runs out — so its mid
+# band sits high, or the panel goes amber every time the machine works. Occupancy
+# of something finite (mem_usage, gpu_nvidia_mem_usage, disk_usage) fails at full
+# scale (OOM, VRAM spilling to host memory, ENOSPC) and what the colour tracks is
+# the headroom left, so its mid band starts lower.
+#
+# disk_usage is the earliest of the three because it is also the only slow and
+# monotone one: everything else is volatile enough that you read it now and notice
+# ahead of time buys nothing, while a disk only fills up, so the useful signal is
+# the one that arrives weeks early. A mid band starting just 10 points under the
+# alert would say nothing the alert isn't about to say.
 cpu_spark            = [55, 80]
 cpu_usage            = [70, 90]
 mem_spark            = [50, 75]
@@ -163,12 +171,18 @@ disk_usage           = [60, 80]
 cpu_temp             = [70, 80]
 hd_temp              = [55, 60]
 gpu_nvidia_usage     = [70, 90]
-gpu_nvidia_mem_usage = [70, 90]
+gpu_nvidia_mem_usage = [60, 80]
 gpu_nvidia_temp      = [70, 80]
 gpu_intel_usage      = [70, 90]
-battery_sys          = [20, 80]
-battery_mouse        = [20, 80]
-battery_kbd          = [20, 80]
+
+# Batteries are inverted — [red, green] — and a charge is the one value here that
+# only ever falls, so a green cutoff at 80 spent four fifths of the range amber
+# and said nothing. The red cutoff is now the point where [notify_thresholds]
+# fires, which puts the two stages where they belong: amber is "find the charger",
+# red is the alert itself.
+battery_sys          = [10, 30]
+battery_mouse        = [20, 40]
+battery_kbd          = [20, 40]
 wifi_signal          = [30, 60]
 
 # Single-value binary threshold: v > threshold -> green (active), otherwise no color.
@@ -203,7 +217,9 @@ temp_sustain_seconds = 60
 temp_hysteresis      = 5
 
 # Load avg 15min: fraction of cores, sustained for load_avg_minutes before notifying.
-load_avg_15      = 0.9
+# Matches the crit end of [thresholds] load_avg_15: at 0.9 it fired while the row
+# was still amber, which is the rule above running backwards.
+load_avg_15      = 1.1
 load_avg_minutes = 10
 
 

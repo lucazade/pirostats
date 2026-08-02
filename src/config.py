@@ -227,20 +227,27 @@ class ThresholdConfig:
     top_process_mem: list[int] = field(default_factory=lambda: [25, 50])
     swap_usage: list[int] = field(default_factory=lambda: [50, 70])
     # The temperature and disk bands end where NotifyThresholds fires, so the crit
-    # colour and the desktop alert mean the same thing. disk_usage keeps a wide mid
-    # band below that: it is the only slow, monotone value here, so its yellow means
-    # "trajectory" — a warning worth weeks of notice — not "act now".
+    # colour and the desktop alert mean the same thing. A usage band's mid, though,
+    # depends on what the percentage counts: a rate is healthy at full scale (a
+    # pinned CPU is working, nothing runs out) so it sits high, while occupancy of
+    # something finite fails there (OOM, VRAM spill, ENOSPC) and the colour tracks
+    # the headroom, so it starts lower. disk_usage is the earliest of the occupancy
+    # three: the only slow, monotone one, its yellow means "trajectory", not "now".
     disk_usage: list[int] = field(default_factory=lambda: [60, 80])
     cpu_temp: list[int] = field(default_factory=lambda: [70, 80])
     gpu_nvidia_temp: list[int] = field(default_factory=lambda: [70, 80])
     gpu_nvidia_usage: list[int] = field(default_factory=lambda: [70, 90])
-    gpu_nvidia_mem_usage: list[int] = field(default_factory=lambda: [70, 90])
+    gpu_nvidia_mem_usage: list[int] = field(default_factory=lambda: [60, 80])
     gpu_intel_usage: list[int] = field(default_factory=lambda: [70, 90])
     hd_temp: list[int] = field(default_factory=lambda: [55, 60])
-    # Batteries: inverted logic (low charge = alarm): [red, green].
-    battery_sys: list[int] = field(default_factory=lambda: [20, 80])
-    battery_mouse: list[int] = field(default_factory=lambda: [20, 80])
-    battery_kbd: list[int] = field(default_factory=lambda: [20, 80])
+    # Batteries: inverted logic (low charge = alarm): [red, green]. A charge only
+    # falls, so a green cutoff at 80 left four fifths of the range amber; the red
+    # cutoff is NotifyThresholds' own, making amber "find the charger" and red the
+    # alert. battery_sys goes lower on both: a laptop at 20% still has time, a
+    # peripheral reports in coarse steps and dies without warning.
+    battery_sys: list[int] = field(default_factory=lambda: [10, 30])
+    battery_mouse: list[int] = field(default_factory=lambda: [20, 40])
+    battery_kbd: list[int] = field(default_factory=lambda: [20, 40])
     # Wifi signal: same inverted logic as batteries (low % = weak signal = alarm).
     wifi_signal: list[int] = field(default_factory=lambda: [30, 60])
     # Single-value binary threshold: v > threshold -> green (active), otherwise no color.
@@ -270,8 +277,10 @@ class NotifyThresholds:
     # fraction of a second, so without these an idle machine alerts on noise.
     temp_sustain_seconds: int = 60
     temp_hysteresis: int = 5
-    # Load avg 15min: fraction of cores (v / nproc) and minimum duration above threshold.
-    load_avg_15: float = 0.9
+    # Load avg 15min: fraction of cores (v / nproc) and minimum duration above
+    # threshold. Kept equal to ThresholdConfig.load_avg_15's crit end, so the alert
+    # doesn't fire while the row is still amber.
+    load_avg_15: float = 1.1
     load_avg_minutes: int = 10
 
 
