@@ -214,22 +214,27 @@ class Surface:
 @dataclass
 class ThresholdConfig:
     """3-band color thresholds: [mid, high]. Below 'mid' -> low color, between mid and high -> mid, from high -> high."""
-    cpu_usage: list[int] = field(default_factory=lambda: [50, 70])
-    cpu_spark: list[int] = field(default_factory=lambda: [50, 70])
-    mem_spark: list[int] = field(default_factory=lambda: [40, 60])
-    mem_usage: list[int] = field(default_factory=lambda: [40, 60])
+    cpu_usage: list[int] = field(default_factory=lambda: [70, 90])
+    # Sparks sit lower than their value twins on purpose: the block height already
+    # carries the level, so the colour is free to mark activity below the point
+    # where the number itself deserves attention.
+    cpu_spark: list[int] = field(default_factory=lambda: [55, 80])
+    mem_spark: list[int] = field(default_factory=lambda: [50, 75])
+    mem_usage: list[int] = field(default_factory=lambda: [60, 80])
     # Top-processes page: per-process bands, distinct from the system-wide ones
-    # above — a single process rarely reaches 40% RAM, so those would never fire.
-    top_process_cpu: list[int] = field(default_factory=lambda: [50, 70])
-    top_process_mem: list[int] = field(default_factory=lambda: [15, 30])
+    # above — a single process rarely reaches 60% RAM, so those would never fire.
+    top_process_cpu: list[int] = field(default_factory=lambda: [70, 90])
+    top_process_mem: list[int] = field(default_factory=lambda: [25, 50])
     swap_usage: list[int] = field(default_factory=lambda: [50, 70])
-    disk_usage: list[int] = field(default_factory=lambda: [50, 80])
-    cpu_temp: list[int] = field(default_factory=lambda: [50, 70])
-    gpu_nvidia_temp: list[int] = field(default_factory=lambda: [50, 70])
-    gpu_nvidia_usage: list[int] = field(default_factory=lambda: [50, 70])
-    gpu_nvidia_mem_usage: list[int] = field(default_factory=lambda: [50, 70])
-    gpu_intel_usage: list[int] = field(default_factory=lambda: [50, 70])
-    hd_temp: list[int] = field(default_factory=lambda: [50, 55])
+    # The temperature and disk bands end where NotifyThresholds fires, so the crit
+    # colour and the desktop alert mean the same thing.
+    disk_usage: list[int] = field(default_factory=lambda: [70, 80])
+    cpu_temp: list[int] = field(default_factory=lambda: [70, 80])
+    gpu_nvidia_temp: list[int] = field(default_factory=lambda: [70, 80])
+    gpu_nvidia_usage: list[int] = field(default_factory=lambda: [70, 90])
+    gpu_nvidia_mem_usage: list[int] = field(default_factory=lambda: [70, 90])
+    gpu_intel_usage: list[int] = field(default_factory=lambda: [70, 90])
+    hd_temp: list[int] = field(default_factory=lambda: [55, 60])
     # Batteries: inverted logic (low charge = alarm): [red, green].
     battery_sys: list[int] = field(default_factory=lambda: [20, 80])
     battery_mouse: list[int] = field(default_factory=lambda: [20, 80])
@@ -242,9 +247,9 @@ class ThresholdConfig:
     # Load avg: thresholds as a fraction of cores (v / nproc), not an absolute value ->
     # [mid, high] stays correct regardless of how many cores the machine has. The longer
     # the window, the lower the thresholds: sustained load is worse than a brief spike.
-    load_avg_1: list[float] = field(default_factory=lambda: [0.7, 1.0])
-    load_avg_5: list[float] = field(default_factory=lambda: [0.6, 0.9])
-    load_avg_15: list[float] = field(default_factory=lambda: [0.5, 0.8])
+    load_avg_1: list[float] = field(default_factory=lambda: [1.0, 1.5])
+    load_avg_5: list[float] = field(default_factory=lambda: [0.9, 1.3])
+    load_avg_15: list[float] = field(default_factory=lambda: [0.8, 1.1])
 
 
 @dataclass
