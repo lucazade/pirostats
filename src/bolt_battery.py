@@ -104,10 +104,22 @@ def _xfer(handle, pkt, expect_feat):
 
 
 def _get_feature_idx(handle, dev_idx, feature_id):
-    """Ask ROOT (feature 0) for the index of feature_id; return 0 if unsupported."""
-    pkt = _pkt(dev_idx, 0x00, 0, feature_id >> 8, feature_id & 0xFF)
-    r = _xfer(handle, pkt, 0x00)
-    return r[4] if r else 0
+    """Ask ROOT (feature 0) for the index of feature_id; return 0 if unsupported.
+
+    Asked twice before giving up. Whichever exchange goes first after the device
+    has gone to sleep pays for the wake-up, and that alone costs about as much as
+    TIMEOUT_MS allows for the whole round trip (measured: 975ms against a 1000ms
+    budget, then 15-40ms for every exchange after it). Losing the coin toss used
+    to cost the device name for a whole cache period; the retry lands on a device
+    that is now awake. It is only safe because _xfer pairs a reply with its own
+    request — a bare retry would race with the first attempt's late answer.
+    """
+    for _ in range(2):
+        pkt = _pkt(dev_idx, 0x00, 0, feature_id >> 8, feature_id & 0xFF)
+        r = _xfer(handle, pkt, 0x00)
+        if r:
+            return r[4]
+    return 0
 
 
 def _get_battery(handle, dev_idx):
