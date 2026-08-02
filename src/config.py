@@ -227,8 +227,10 @@ class ThresholdConfig:
     top_process_mem: list[int] = field(default_factory=lambda: [25, 50])
     swap_usage: list[int] = field(default_factory=lambda: [50, 70])
     # The temperature and disk bands end where NotifyThresholds fires, so the crit
-    # colour and the desktop alert mean the same thing.
-    disk_usage: list[int] = field(default_factory=lambda: [70, 80])
+    # colour and the desktop alert mean the same thing. disk_usage keeps a wide mid
+    # band below that: it is the only slow, monotone value here, so its yellow means
+    # "trajectory" — a warning worth weeks of notice — not "act now".
+    disk_usage: list[int] = field(default_factory=lambda: [60, 80])
     cpu_temp: list[int] = field(default_factory=lambda: [70, 80])
     gpu_nvidia_temp: list[int] = field(default_factory=lambda: [70, 80])
     gpu_nvidia_usage: list[int] = field(default_factory=lambda: [70, 90])

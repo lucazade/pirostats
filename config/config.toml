@@ -146,6 +146,12 @@ mem_braille_length = 10
 # block height already carries the level (traces.spark_html scales it off the
 # raw value), so its colour is free to mark "you were working here" well below
 # the point where the number itself deserves attention.
+#
+# disk_usage keeps a wide mid band for the opposite reason: it is the only slow,
+# monotone value here. Everything else is volatile enough that you read it now
+# and a warning ahead of time buys nothing, while a disk only fills up, so the
+# useful signal is the one that arrives weeks early. A mid band starting just
+# 10 points under the alert would say nothing the alert isn't about to say.
 cpu_spark            = [55, 80]
 cpu_usage            = [70, 90]
 mem_spark            = [50, 75]
@@ -153,7 +159,7 @@ mem_usage            = [60, 80]
 top_process_cpu      = [70, 90]
 top_process_mem      = [25, 50]
 swap_usage           = [50, 70]
-disk_usage           = [70, 80]
+disk_usage           = [60, 80]
 cpu_temp             = [70, 80]
 hd_temp              = [55, 60]
 gpu_nvidia_usage     = [70, 90]
