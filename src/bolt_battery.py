@@ -32,8 +32,32 @@ _lib.hid_close.argtypes        = [ctypes.c_void_p]
 
 BOLT_PID       = "c548"
 BOLT_USB_IFACE = 2        # DJ/HID++ control interface
-SW_ID          = 1        # arbitrary software-id tag
+SW_ID_MAX      = 15       # software-id is 4 bits; 0 is reserved for device-initiated events
 TIMEOUT_MS     = 1000
+
+_sw_id = 0
+
+
+def _next_sw_id():
+    """Rotate the software-id tag, one per exchange. It exists precisely so a
+    response can be paired with its request, and two consecutive exchanges must
+    not share it: the ROOT query that resolves one feature index is otherwise
+    identical, byte for byte, to the one that resolves the next. A reply arriving
+    after its own read timed out would then be collected by the following
+    exchange, handing it the wrong feature index — an MX Keys S once reported
+    ord('M') = 77 as its battery level that way, having answered getDeviceName
+    while we thought we were reading UNIFIED_BATTERY.
+    """
+    global _sw_id
+    _sw_id = _sw_id % SW_ID_MAX + 1
+    return _sw_id
+
+
+def _pkt(dev_idx, feat, func, *params):
+    """A HID++ 2.0 long request: report id, device index, feature index, then the
+    function and this exchange's software id packed in one byte, then params."""
+    return bytes([0x11, dev_idx, feat, (func << 4) | _next_sw_id()]
+                 + list(params) + [0] * (16 - len(params)))
 
 
 def _bolt_hidraw():
@@ -57,15 +81,22 @@ def _bolt_hidraw():
 # ── HID++ 2.0 helpers ─────────────────────────────────────────────────────────
 
 def _xfer(handle, pkt, expect_feat):
-    """Write pkt, return first matching response or None on timeout."""
+    """Write pkt, return the response carrying this exchange's own software id, or
+    None on timeout. Two guards against picking up somebody else's answer: the
+    queue is drained first, since hidraw hands every reader a copy of every report
+    (a second pirostats mid-restart, an unsolicited device notification, or a reply
+    to an exchange that already timed out), and byte 3 is matched, not just the
+    device and feature indices — see _next_sw_id."""
     buf = ctypes.create_string_buffer(64)
+    while _lib.hid_read_timeout(handle, buf, 64, 0) > 0:
+        pass
     if _lib.hid_write(handle, pkt, len(pkt)) < 0:
         return None
     for _ in range(10):
         n = _lib.hid_read_timeout(handle, buf, 64, TIMEOUT_MS)
         if n >= 5:
             raw = buf.raw[:n]
-            if raw[1] == pkt[1] and raw[2] == expect_feat:
+            if raw[1] == pkt[1] and raw[2] == expect_feat and raw[3] == pkt[3]:
                 return raw
         if n <= 0:
             break
@@ -74,8 +105,7 @@ def _xfer(handle, pkt, expect_feat):
 
 def _get_feature_idx(handle, dev_idx, feature_id):
     """Ask ROOT (feature 0) for the index of feature_id; return 0 if unsupported."""
-    hi, lo = feature_id >> 8, feature_id & 0xFF
-    pkt = bytes([0x11, dev_idx, 0x00, SW_ID, hi, lo] + [0] * 14)
+    pkt = _pkt(dev_idx, 0x00, 0, feature_id >> 8, feature_id & 0xFF)
     r = _xfer(handle, pkt, 0x00)
     return r[4] if r else 0
 
@@ -85,7 +115,7 @@ def _get_battery(handle, dev_idx):
     feat = _get_feature_idx(handle, dev_idx, 0x1004)  # UNIFIED_BATTERY
     if not feat:
         return None
-    pkt = bytes([0x11, dev_idx, feat, (1 << 4) | SW_ID] + [0] * 16)
+    pkt = _pkt(dev_idx, feat, 1)          # function 1 = getStatus
     r = _xfer(handle, pkt, feat)
     return r[4] if r else None
 
@@ -95,8 +125,7 @@ def _get_name(handle, dev_idx):
     feat = _get_feature_idx(handle, dev_idx, 0x0005)  # DEVICE_NAME
     if not feat:
         return ""
-    # Function 1 = getDeviceName(charIndex=0)
-    pkt = bytes([0x11, dev_idx, feat, (1 << 4) | SW_ID, 0x00] + [0] * 15)
+    pkt = _pkt(dev_idx, feat, 1, 0x00)    # function 1 = getDeviceName(charIndex=0)
     r = _xfer(handle, pkt, feat)
     if not r:
         return ""
