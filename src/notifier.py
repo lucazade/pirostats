@@ -57,6 +57,7 @@ class NotifState:
     # Debounced alerts (_sustained): a latch each, keyed by label where per-device.
     cpu_temp: Latch = field(default_factory=Latch)
     gpu_nvidia_temp: Latch = field(default_factory=Latch)
+    gpu_amd_temp: Latch = field(default_factory=Latch)
     hd_temp: dict[str, Latch] = field(default_factory=dict)     # label → latch
     load_avg: Latch = field(default_factory=Latch)
 
@@ -100,7 +101,7 @@ def check_and_notify(r: Readings, cfg: Config, state: NotifState, hw: HardwareIn
     nl = lb.get("notify", {})  # notification-only wording, see lang/<language>.toml [notify]
     now = time.monotonic()     # once per pass, so every latch below times off the same instant
 
-    # The three temperatures share one debounce (a spike is a spike whatever the
+    # Every temperature shares one debounce (a spike is a spike whatever the
     # chip), so they read the same two knobs rather than one pair each.
     hold = n.temp_sustain_seconds
     cool = n.temp_hysteresis
@@ -115,6 +116,11 @@ def check_and_notify(r: Readings, cfg: Config, state: NotifState, hw: HardwareIn
         if _sustained(state.gpu_nvidia_temp, r.gpu_temp, n.gpu_nvidia_temp,
                       n.gpu_nvidia_temp - cool, hold, now):
             _send("PiroStats", f"{lb.get('gpu_nvidia_temp', 'Gpu temp')} {r.gpu_temp}{TEMP_SCALE}")
+
+    if c.gpu_amd_temp and r.gpu_amd_temp is not None:
+        if _sustained(state.gpu_amd_temp, r.gpu_amd_temp, n.gpu_amd_temp,
+                      n.gpu_amd_temp - cool, hold, now):
+            _send("PiroStats", f"{lb.get('gpu_amd_temp', 'Gpu temp')} {r.gpu_amd_temp}{TEMP_SCALE}")
 
     # Disk usage
     if c.disk_usage:

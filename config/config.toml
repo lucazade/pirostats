@@ -69,11 +69,13 @@ items = ["disk_usage", "disk_smart:pair"]
 [tooltip.gpu]
 title = "GPU"
 items = ["gpu_nvidia_usage", "gpu_nvidia_mem_usage", "gpu_nvidia_dec_usage",
+         "gpu_amd_usage", "gpu_amd_mem_usage", "gpu_amd_freq",
          "gpu_intel_usage", "gpu_intel_freq", "gpu_intel_dec_usage", "screen_brightness"]
 
 [tooltip.thermal]
 title = "THERMAL"
-items = ["cpu_temp", "gpu_nvidia_temp", "hd_temp:pair", "fan_speed:pair", "gpu_nvidia_fan_speed"]
+items = ["cpu_temp", "gpu_nvidia_temp", "gpu_amd_temp", "hd_temp:pair", "fan_speed:pair",
+         "gpu_nvidia_fan_speed", "gpu_amd_fan_speed"]
 
 [tooltip.batteries]
 title = "BATTERIES"
@@ -173,6 +175,9 @@ hd_temp              = [55, 60]
 gpu_nvidia_usage     = [70, 90]
 gpu_nvidia_mem_usage = [60, 80]
 gpu_nvidia_temp      = [70, 80]
+gpu_amd_usage        = [70, 90]
+gpu_amd_mem_usage    = [60, 80]
+gpu_amd_temp         = [70, 80]
 gpu_intel_usage      = [70, 90]
 
 # Batteries are inverted — [red, green] — and a charge is the one value here that
@@ -204,11 +209,12 @@ disk_usage      = 80
 cpu_temp        = 80
 hd_temp         = 60
 gpu_nvidia_temp = 80
+gpu_amd_temp    = 80
 battery_sys     = 10
 battery_mouse   = 20
 battery_kbd     = 20
 
-# Debounce shared by the three temperatures above. A CPU boost burst crosses the
+# Debounce shared by the temperatures above. A CPU boost burst crosses the
 # threshold for a fraction of a second on an otherwise idle machine, so a reading
 # must hold over it for temp_sustain_seconds to notify, and then drop
 # temp_hysteresis degrees below it before the alert can fire again (no rattling
@@ -226,7 +232,7 @@ load_avg_minutes = 10
 # ── Notifications ─────────────────────────────────────────────────────────────
 
 # Per-category on/off for the desktop notifications. The load-driven ones
-# (cpu_temp, gpu_nvidia_temp, load_avg) are OFF by default: under a normal heavy
+# (cpu_temp, gpu_nvidia_temp, gpu_amd_temp, load_avg) are OFF by default: under a normal heavy
 # workload — gaming, compiling — a laptop legitimately sustains 80°C+ and a high
 # load average, so as a default they fire correctly but constantly and read as
 # noise. Flip them to true if you want the thermal/load alerts. The rest stay on:
@@ -237,6 +243,7 @@ disk_smart      = true
 cpu_temp        = false
 hd_temp         = true
 gpu_nvidia_temp = false
+gpu_amd_temp    = false
 battery_sys     = true
 battery_mouse   = true
 battery_kbd     = true

@@ -236,11 +236,13 @@ def mem_space(thr_fn: Callable[..., object]) -> CellFn:
 FAN_OFF = "off"  # fan stopped (0 rpm / 0%): more readable than a bare "0"
 
 
-def fan_value() -> CellFn:
+def fan_value(attr: Optional[str] = None) -> CellFn:
     """Fan RPM: "<rpm> rpm" in the tooltip, just the number in the panel, no
-    threshold. "off" when stopped (0 rpm), EMPTY_VALUE when absent."""
+    threshold. "off" when stopped (0 rpm), EMPTY_VALUE when absent. Reads the
+    per-instance r.fan_speeds[key] by default, or a single named Readings field
+    (the AMD GPU fan, which amdgpu reports in RPM where NVML gives a duty %)."""
     def cell(f, ident, r, tooltip, key):
-        rpm = r.fan_speeds.get(key)
+        rpm = getattr(r, attr) if attr else r.fan_speeds.get(key)
         if rpm is None:
             speed = EMPTY_VALUE
         elif rpm == 0:

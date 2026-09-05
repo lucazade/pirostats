@@ -172,6 +172,15 @@ class HardwareInfo:
     has_backlight: bool                 # a backlight device exists
     has_wifi: bool                      # a wireless interface exists
 
+    # AMD needs no library or fork (unlike Nvidia): every reading is a sysfs file,
+    # resolved once here. Each is independently optional and gates its own metric.
+    amd_gpu_busy_path: Optional[Path] = None        # device/gpu_busy_percent
+    amd_gpu_vram_used_path: Optional[Path] = None   # device/mem_info_vram_used
+    amd_gpu_vram_total_path: Optional[Path] = None  # device/mem_info_vram_total
+    amd_gpu_temp_path: Optional[Path] = None        # hwmon tempN_input (edge preferred)
+    amd_gpu_fan_path: Optional[Path] = None         # hwmon fan1_input (RPM)
+    amd_gpu_freq_path: Optional[Path] = None        # hwmon freq1_input (sclk, Hz)
+
     # ── Dynamic (retried every 60s if None) ────────────────────────────────
     battery_mouse_id: Optional[str] = None   # UPower path
     battery_kbd_id: Optional[str] = None
@@ -344,6 +353,12 @@ class Readings:
     gpu_intel_usage: Optional[int] = None
     gpu_intel_dec_usage: Optional[int] = None
 
+    gpu_amd_usage: Optional[int] = None
+    gpu_amd_mem_usage: Optional[int] = None   # VRAM occupancy %, not mem_busy
+    gpu_amd_temp: Optional[int] = None
+    gpu_amd_fan_speed: Optional[int] = None   # RPM (amdgpu reports RPM, not %)
+    gpu_amd_freq: Optional[int] = None        # MHz
+
     # graphs page: the active GPU's usage + decoder history (vendor-resolved)
     gpu_usage_history: list[int] = field(default_factory=list)
     gpu_dec_history: list[int] = field(default_factory=list)
@@ -368,6 +383,7 @@ def discover_hardware(cfg: Config) -> HardwareInfo:
         battery_sys_ids = _find_battery_sys(),
         has_nvidia      = _detect_nvidia(),
         **_detect_intel_gpu(),
+        **_detect_amd_gpu(),
         net_device      = _detect_net_device(),
         disk_io_device  = _detect_disk_io_device(),
         cpu_count       = os.cpu_count() or 1,
@@ -589,6 +605,17 @@ def collect(
             r.gpu_intel_usage = metrics.get("render")
         if wants_intel_dec:
             r.gpu_intel_dec_usage = metrics.get("video")
+
+    # No TTL cache and no skip_slow guard: the whole block is a few small reads.
+    if "gpu_amd" in caps:
+        with timed_section(timings, "gpu_amd"):
+            r.gpu_amd_usage     = _pct_cap(_read_path_int(hw.amd_gpu_busy_path))
+            r.gpu_amd_temp      = _read_path_millideg(hw.amd_gpu_temp_path)
+            r.gpu_amd_fan_speed = _read_path_int(hw.amd_gpu_fan_path)
+            r.gpu_amd_mem_usage = _read_amd_vram_percent(hw)
+            # amdgpu reports sclk in Hz; the freq cell renders MHz like cpu_freq.
+            freq = _read_path_int(hw.amd_gpu_freq_path)
+            r.gpu_amd_freq = freq // 1_000_000 if freq else None
 
     _sample_gpu_history(state, cfg, hw, r)
 
@@ -1130,6 +1157,89 @@ def _detect_intel_gpu() -> dict:
     return {"intel_gpu_freq_path": None, "intel_gpu_pci": None}
 
 
+# amdgpu labels several temperatures. "edge" is the one other tools report as
+# "the" GPU temperature; junction (hotspot) and mem run 5-15°C hotter, so picking
+# one of those would fire the shipped thresholds on a healthy card.
+_AMD_TEMP_PREFERENCE = ("edge", "junction", "mem")
+
+_AMD_KEYS = ("amd_gpu_busy_path", "amd_gpu_vram_used_path", "amd_gpu_vram_total_path",
+             "amd_gpu_temp_path", "amd_gpu_fan_path", "amd_gpu_freq_path")
+
+
+def _amd_hwmon_paths(device: Path) -> dict:
+    """Resolve the amdgpu hwmon readings (temp/fan/sclk) for one card. The hwmon
+    index isn't stable across boots, so it's found under the card's own device/
+    rather than by a global /sys/class/hwmon scan — that also keeps two AMD GPUs
+    from resolving to each other's sensors."""
+    paths = {"amd_gpu_temp_path": None, "amd_gpu_fan_path": None, "amd_gpu_freq_path": None}
+    try:
+        hwmons = sorted((device / "hwmon").iterdir())
+    except OSError:
+        return paths
+    for hw in hwmons:
+        try:
+            if (hw / "name").read_text().strip() != "amdgpu":
+                continue
+        except OSError:
+            continue
+        labelled: dict[str, Path] = {}
+        for temp in sorted(hw.glob("temp[0-9]*_input")):
+            label_file = temp.parent / temp.name.replace("_input", "_label")
+            try:
+                labelled[label_file.read_text().strip().lower()] = temp
+            except OSError:
+                labelled.setdefault("", temp)   # unlabelled: last-resort candidate
+        for want in _AMD_TEMP_PREFERENCE:
+            if want in labelled:
+                paths["amd_gpu_temp_path"] = labelled[want]
+                break
+        else:
+            # No recognized label: take the lowest-numbered sensor that exists.
+            first = next(iter(sorted(hw.glob("temp[0-9]*_input"))), None)
+            paths["amd_gpu_temp_path"] = first
+        for key, name in (("amd_gpu_fan_path", "fan1_input"),
+                          ("amd_gpu_freq_path", "freq1_input")):
+            candidate = hw / name
+            if candidate.exists():
+                paths[key] = candidate
+        return paths
+    return paths
+
+
+def _detect_amd_gpu() -> dict:
+    """Find an AMD DRM card (vendor 0x1002, display class) and resolve its sysfs
+    readings. On a hybrid AMD APU + AMD dGPU machine both cards match, so the one
+    with the most VRAM wins — that's the discrete card, the one whose load and
+    temperature a stats panel is about. Every path is independently optional."""
+    best: Optional[tuple[int, dict]] = None
+    for card in sorted(Path("/sys/class/drm").glob("card[0-9]*")):
+        device = card / "device"
+        try:
+            if (device / "vendor").read_text().strip() != "0x1002":
+                continue
+            if not (device / "class").read_text().strip().startswith("0x03"):
+                continue
+        except OSError:
+            continue
+        busy = device / "gpu_busy_percent"
+        if not busy.exists():
+            continue          # not an amdgpu-driven card (radeon legacy): nothing to read
+        vram_total = device / "mem_info_vram_total"
+        vram_used  = device / "mem_info_vram_used"
+        found = {
+            "amd_gpu_busy_path": busy,
+            "amd_gpu_vram_used_path":  vram_used  if vram_used.exists()  else None,
+            "amd_gpu_vram_total_path": vram_total if vram_total.exists() else None,
+            **_amd_hwmon_paths(device),
+        }
+        size = _read_path_int(vram_total) or 0
+        if best is None or size > best[0]:
+            best = (size, found)
+    if best is None:
+        return dict.fromkeys(_AMD_KEYS, None)
+    return best[1]
+
+
 # ── Sensor reads ──────────────────────────────────────────────────────────────
 
 def _read_cpu_usage(state: DaemonState, cfg: Config) -> int:
@@ -1416,15 +1526,19 @@ def _read_mem_usage(state: DaemonState, cfg: Config) -> tuple[Optional[int], Opt
 
 def _sample_gpu_history(state: DaemonState, cfg: Config, hw, r: Readings) -> None:
     """Sample the active GPU's usage + decoder into the shared history buffers
-    for the graphs page (Nvidia preferred over Intel on hybrids). Gated on the
-    page being enabled, throttled to history_interval, trimmed to
-    graph_history_length. Writes r.gpu_usage_history / r.gpu_dec_history; on a
-    poll where the GPU wasn't read (skipped/None) it just re-exposes the buffer
-    so a gap doesn't blank the chart."""
+    for the graphs page (discrete before integrated on hybrids: Nvidia, then AMD,
+    then Intel). Gated on the page being enabled, throttled to history_interval,
+    trimmed to graph_history_length. Writes r.gpu_usage_history /
+    r.gpu_dec_history; on a poll where the GPU wasn't read (skipped/None) it just
+    re-exposes the buffer so a gap doesn't blank the chart."""
     if "graphs" not in cfg.pages.order:
         return
     if hw.has_nvidia:
         usage, dec = r.gpu_usage, r.gpu_dec
+    elif hw.amd_gpu_busy_path:
+        # amdgpu exposes no per-engine decoder utilization in sysfs, so the
+        # graphs page draws the usage area with no overlay line for AMD.
+        usage, dec = r.gpu_amd_usage, None
     elif hw.intel_gpu_pci:
         usage, dec = r.gpu_intel_usage, r.gpu_intel_dec_usage
     else:
@@ -1822,7 +1936,7 @@ def _gpu_cache_ttl() -> float:
     return GPU_CACHE_TTL_NVML if (_PYNVML_AVAILABLE and not _pynvml_init_failed) else GPU_CACHE_TTL
 
 
-def _nvidia_cap(v: Optional[int]) -> Optional[int]:
+def _pct_cap(v: Optional[int]) -> Optional[int]:
     """Cap a metric at 99 (panel/tooltip render % as two digits), passing None through."""
     return min(v, 99) if v is not None else None
 
@@ -1868,8 +1982,8 @@ def _read_nvidia_pynvml() -> Optional[tuple[Optional[int], ...]]:
         dec = pynvml.nvmlDeviceGetDecoderUtilization(h)[0]
     except Exception:
         dec = None
-    return (_nvidia_cap(temp), _nvidia_cap(util.gpu), _nvidia_cap(util.memory),
-            _nvidia_cap(dec), _nvidia_cap(fan))
+    return (_pct_cap(temp), _pct_cap(util.gpu), _pct_cap(util.memory),
+            _pct_cap(dec), _pct_cap(fan))
 
 
 def _read_nvidia_smi() -> tuple[Optional[int], ...]:
@@ -1885,7 +1999,7 @@ def _read_nvidia_smi() -> tuple[Optional[int], ...]:
         parts = [p.strip() for p in out.split(",")]
         def _i(v: str) -> Optional[int]:
             try:
-                return _nvidia_cap(int(v))
+                return _pct_cap(int(v))
             except ValueError:
                 return None
         # Caller unpacks (temp, usage, mem, dec, fan). The query lists fan.speed
@@ -1905,6 +2019,18 @@ def _read_nvidia(state: DaemonState) -> tuple[Optional[int], ...]:
     state.gpu_cache    = result
     state.gpu_cache_ts = time.monotonic()
     return result
+
+
+def _read_amd_vram_percent(hw) -> Optional[int]:
+    """VRAM occupancy % from mem_info_vram_used/total. amdgpu's mem_busy_percent
+    is a bandwidth-utilization figure, not occupancy, so it isn't the analog of
+    Nvidia's memory number the mem_usage thresholds are written against — the
+    used/total ratio is."""
+    used  = _read_path_int(hw.amd_gpu_vram_used_path)
+    total = _read_path_int(hw.amd_gpu_vram_total_path)
+    if used is None or not total:
+        return None
+    return _pct_cap(round(used * 100 / total))
 
 
 def _read_count_file(path: str) -> Optional[int]:

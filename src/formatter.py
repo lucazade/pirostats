@@ -86,6 +86,9 @@ def _maxed_readings(r: Readings, hw: HardwareInfo) -> Readings:
     m.gpu_usage = m.gpu_mem = m.gpu_dec = m.gpu_fan = 100
     m.gpu_intel_usage = m.gpu_intel_dec_usage = 100
     m.gpu_intel_freq = 9999
+    m.gpu_amd_usage = m.gpu_amd_mem_usage = m.gpu_amd_temp = 100
+    m.gpu_amd_freq = 9999
+    m.gpu_amd_fan_speed = 9999      # RPM, four digits like the chassis fans
     m.cpu_freq = 9999.0
     m.screen_brightness = m.wifi_signal = 100
     m.net_up_bps = m.net_down_bps = 999_000_000          # -> "999M"
@@ -335,12 +338,17 @@ class PanelFormatter:
 
     def _gpu_graph(self, r: Readings):
         """(usage_hist, dec_hist, usage_cur, dec_cur, usage_thr, dec_thr) for the
-        active GPU, or None when there's no GPU. Nvidia is preferred over Intel,
-        matching sensors._sample_gpu_history."""
+        active GPU, or None when there's no GPU. Discrete beats integrated
+        (Nvidia, then AMD, then Intel), matching sensors._sample_gpu_history."""
         thr = self._cfg.thresholds
         if self._hw.has_nvidia:
             return (r.gpu_usage_history, r.gpu_dec_history, r.gpu_usage, r.gpu_dec,
                     tuple(thr.gpu_nvidia_usage), thr.gpu_nvidia_dec_usage)
+        if self._hw.amd_gpu_busy_path:
+            # No decoder series: amdgpu exposes no per-engine video utilization,
+            # so the chart is the usage area with no overlay line.
+            return (r.gpu_usage_history, [], r.gpu_amd_usage, None,
+                    tuple(thr.gpu_amd_usage), None)
         if self._hw.intel_gpu_pci:
             return (r.gpu_usage_history, r.gpu_dec_history, r.gpu_intel_usage, r.gpu_intel_dec_usage,
                     tuple(thr.gpu_intel_usage), thr.gpu_intel_dec_usage)
@@ -386,10 +394,12 @@ class PanelFormatter:
             png = chart.area_chart_png(list(u_hist or []), w, h, left_pad=lp,
                                        line=chart.GREEN_LINE, fill=chart.GREEN_FILL,
                                        overlay=list(d_hist or []), overlay_line=chart.ORANGE_LINE)
-            blocks.append(png_img(png) + legend([
-                (chart.GREEN_LINE,  "GPU usage", self._graph_val(u_cur, u_thr)),
-                (chart.ORANGE_LINE, "Decoder",   self._graph_val(d_cur, d_thr)),
-            ]))
+            entries = [(chart.GREEN_LINE, "GPU usage", self._graph_val(u_cur, u_thr))]
+            # Skipped for a vendor with no decoder counter (AMD): the row would
+            # read "--" forever.
+            if d_thr is not None:
+                entries.append((chart.ORANGE_LINE, "Decoder", self._graph_val(d_cur, d_thr)))
+            blocks.append(png_img(png) + legend(entries))
 
         if self._hw.net_device:
             # Byte-rate scale is dynamic, so auto-fit vmax to the window peak and

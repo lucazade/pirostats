@@ -73,7 +73,8 @@ drift while Plasma lazily resizes the popup.
 
 The **graphs page** is the exception to "all visuals are text": it stacks
 plasma-systemmonitor-style history charts — CPU, memory, the active GPU (usage
-as the filled area, decoder as an overlaid line; Nvidia preferred over Intel),
+as the filled area, decoder as an overlaid line where the vendor reports one;
+discrete preferred over integrated — Nvidia, then AMD, then Intel),
 and network (download area + upload line, auto-scaled to the window peak, no
 percent labels) — each a PNG rasterized by `chart.py` (grid + y-axis labels +
 filled area + antialiased line, pure `zlib`+`struct`, no image lib) and
