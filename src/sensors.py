@@ -614,8 +614,9 @@ def collect(
             r.gpu_amd_fan_speed = _read_path_int(hw.amd_gpu_fan_path)
             r.gpu_amd_mem_usage = _read_amd_vram_percent(hw)
             # amdgpu reports sclk in Hz; the freq cell renders MHz like cpu_freq.
+            # `is not None`, not truthiness: an idle card really does report 0.
             freq = _read_path_int(hw.amd_gpu_freq_path)
-            r.gpu_amd_freq = freq // 1_000_000 if freq else None
+            r.gpu_amd_freq = freq // 1_000_000 if freq is not None else None
 
     _sample_gpu_history(state, cfg, hw, r)
 
