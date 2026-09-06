@@ -43,6 +43,15 @@ jobs:
       # vulture and ruff matter for a different reason: test_deadcode.py and
       # test_lint.py SKIP when their tool is missing, so without this line the
       # run would be green while two of the gates never executed.
+      # tests/test_bolt_battery.py imports src/bolt_battery.py, which resolves
+      # libhidapi at import time and raises OSError when it is absent — that
+      # aborts collection for the WHOLE suite, not just that file. sensors.py
+      # guards its import of the module; the test imports it directly on
+      # purpose, since the Bolt tests script a fake receiver and are worth
+      # running on a machine with no Logitech hardware at all.
+      - name: Install libhidapi
+        run: sudo apt-get update && sudo apt-get install -y libhidapi-hidraw0
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
