@@ -1183,21 +1183,21 @@ def _amd_hwmon_paths(device: Path) -> dict:
                 continue
         except OSError:
             continue
+        temps = sorted(hw.glob("temp[0-9]*_input"))
         labelled: dict[str, Path] = {}
-        for temp in sorted(hw.glob("temp[0-9]*_input")):
+        for temp in temps:
             label_file = temp.parent / temp.name.replace("_input", "_label")
             try:
                 labelled[label_file.read_text().strip().lower()] = temp
             except OSError:
-                labelled.setdefault("", temp)   # unlabelled: last-resort candidate
+                continue        # unlabelled: the positional fallback below covers it
         for want in _AMD_TEMP_PREFERENCE:
             if want in labelled:
                 paths["amd_gpu_temp_path"] = labelled[want]
                 break
         else:
             # No recognized label: take the lowest-numbered sensor that exists.
-            first = next(iter(sorted(hw.glob("temp[0-9]*_input"))), None)
-            paths["amd_gpu_temp_path"] = first
+            paths["amd_gpu_temp_path"] = temps[0] if temps else None
         for key, name in (("amd_gpu_fan_path", "fan1_input"),
                           ("amd_gpu_freq_path", "freq1_input")):
             candidate = hw / name
