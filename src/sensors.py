@@ -607,9 +607,12 @@ def collect(
             r.gpu_intel_dec_usage = metrics.get("video")
 
     # No TTL cache and no skip_slow guard: the whole block is a few small reads,
-    # and they don't hold a runtime-suspended card awake — amdgpu fails them with
-    # EBUSY rather than resuming (measured on a dGPU in D3), so a sleeping card
-    # reads as None like an absent one.
+    # and polling them did not hold a runtime-suspended card awake. Measured on a
+    # Navi 32 (RX 7800 XT, 1002:747e) idling in D3 under 7.2.3: the reads failed
+    # with EBUSY instead of resuming the card, runtime_suspended_time kept
+    # climbing across them, and _read_path_int turned the OSError into None — the
+    # same reading an absent card produces. Re-check if a kernel ever makes these
+    # resume instead: that would put a wake-up on every poll_interval.
     if "gpu_amd" in caps:
         with timed_section(timings, "gpu_amd"):
             r.gpu_amd_usage     = _pct_cap(_read_path_int(hw.amd_gpu_busy_path))
