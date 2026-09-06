@@ -606,7 +606,10 @@ def collect(
         if wants_intel_dec:
             r.gpu_intel_dec_usage = metrics.get("video")
 
-    # No TTL cache and no skip_slow guard: the whole block is a few small reads.
+    # No TTL cache and no skip_slow guard: the whole block is a few small reads,
+    # and they don't hold a runtime-suspended card awake — amdgpu fails them with
+    # EBUSY rather than resuming (measured on a dGPU in D3), so a sleeping card
+    # reads as None like an absent one.
     if "gpu_amd" in caps:
         with timed_section(timings, "gpu_amd"):
             r.gpu_amd_usage     = _pct_cap(_read_path_int(hw.amd_gpu_busy_path))
