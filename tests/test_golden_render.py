@@ -86,6 +86,11 @@ def test_golden_render(name, vertical, kind, monkeypatch):
     # doesn't trigger and the width is config's own defaults — so the snapshot
     # doesn't depend on /tmp/pirostats_geom, which a live daemon writes and rewrites.
     monkeypatch.setattr(config, "detect_panel_geometry", lambda: PanelGeometry(vertical=True))
+    # NO machine block: load_config() would otherwise merge whichever one matches
+    # the machine running the suite (~/.config/pirostats/machines.toml included),
+    # so the snapshot would encode the contributor's hardware instead of the
+    # shipped defaults.
+    monkeypatch.setattr(config, "detect_machine", lambda machines: None)
     # FIXED time: battery_sys in the panel alternates percentage/watts based on
     # time.time() // interval — freezing it pins the phase, otherwise panel_v
     # would change every few seconds.
