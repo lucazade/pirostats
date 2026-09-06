@@ -120,7 +120,7 @@ def check_and_notify(r: Readings, cfg: Config, state: NotifState, hw: HardwareIn
     if c.gpu_amd_temp and r.gpu_amd_temp is not None:
         if _sustained(state.gpu_amd_temp, r.gpu_amd_temp, n.gpu_amd_temp,
                       n.gpu_amd_temp - cool, hold, now):
-            _send("PiroStats", f"{lb.get('gpu_amd_temp', 'Gpu temp')} {r.gpu_amd_temp}{TEMP_SCALE}")
+            _send("PiroStats", f"{lb.get('gpu_amd_temp', 'Radeon temp')} {r.gpu_amd_temp}{TEMP_SCALE}")
 
     # Disk usage
     if c.disk_usage:
