@@ -47,9 +47,9 @@ _.gpu_mem
 _.screen_brightness
 # Same for the AMD readings: the registry names them as strings in
 # `value("gpu_amd_mem_usage", ...)`, `freq_value("gpu_amd_freq")` and
-# `gpu_rpm_value("gpu_amd_fan_speed")`, and formatter._maxed_readings assigns
-# them for the canonical width.
-gpu_amd_mem_usage
+# `fan_value("gpu_amd_fan_speed")`, and formatter._maxed_readings assigns them
+# for the canonical width. The bare gpu_amd_mem_usage is up with the thresholds:
+# vulture matches the name, so the one entry covers the Readings field too.
 gpu_amd_fan_speed
 gpu_amd_freq
 _.gpu_amd_mem_usage
