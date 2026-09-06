@@ -102,6 +102,11 @@ _RENDER.update({
     ("gpu_intel_freq", Form.VALUE): row(label(), freq_value("gpu_intel_freq")),
     ("gpu_intel_usage", Form.VALUE): row(label(), value("gpu_intel_usage", "%", _thr("gpu_intel_usage"))),
     ("gpu_intel_dec_usage", Form.VALUE): row(label(), value("gpu_intel_dec_usage", "%", _thr("gpu_intel_dec_usage"))),
+    ("gpu_amd_usage", Form.VALUE): row(label(), value("gpu_amd_usage", "%", _thr("gpu_amd_usage"))),
+    ("gpu_amd_mem_usage", Form.VALUE): row(label(), value("gpu_amd_mem_usage", "%", _thr("gpu_amd_mem_usage"))),
+    ("gpu_amd_temp", Form.VALUE): row(label(), value("gpu_amd_temp", _TEMP, _thr("gpu_amd_temp"))),
+    ("gpu_amd_fan_speed", Form.VALUE): row(label(), fan_value("gpu_amd_fan_speed")),
+    ("gpu_amd_freq", Form.VALUE): row(label(), freq_value("gpu_amd_freq")),
     ("screen_brightness", Form.VALUE): row(label(), value("screen_brightness", "%", _NONE)),
 
     # ── multi-instance (disks, fans): value, and pair where provided ──
@@ -196,7 +201,8 @@ def item_gate(f, token: str, r) -> bool:
 # Capabilities enabled notifications consume even without the item on screen
 # (key = NotificationConfig field, value = capability).
 _NOTIFY_CAPS = {
-    "cpu_temp": "cpu_temp", "gpu_nvidia_temp": "gpu_nvidia", "disk_usage": "disk_usage",
+    "cpu_temp": "cpu_temp", "gpu_nvidia_temp": "gpu_nvidia", "gpu_amd_temp": "gpu_amd",
+    "disk_usage": "disk_usage",
     "disk_smart": "disk_smart", "hd_temp": "hd_temp", "battery_sys": "battery_sys",
     "battery_mouse": "battery_mouse", "battery_kbd": "battery_kbd",
     "load_avg": "load_avg", "server_check": "server_check",
@@ -220,7 +226,7 @@ def needed_capabilities(cfg) -> set[str]:
     # no such item on a surface, so request their caps; the hardware gate in
     # collect narrows this to the GPU / interface actually present.
     if "graphs" in cfg.pages.order:
-        caps |= {"gpu_nvidia", "gpu_intel_usage", "gpu_intel_dec", "net_speed"}
+        caps |= {"gpu_nvidia", "gpu_amd", "gpu_intel_usage", "gpu_intel_dec", "net_speed"}
     return caps
 
 

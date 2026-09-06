@@ -51,7 +51,8 @@ there are **zero process forks in the hot path**.
   Pick it in the widget's *Appearance* page.
 - Optional, per page/sensor: ss (iproute2) for the connections page, fastfetch
   for system info; psutil, pynvml (NVIDIA), and UPower/UDisks2 (via GDBus) for
-  the corresponding hardware.
+  the corresponding hardware. AMD GPUs need nothing extra — they are read
+  straight from `amdgpu`'s sysfs.
 
 ## Install
 

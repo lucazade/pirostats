@@ -31,6 +31,9 @@ def _full_hw() -> HardwareInfo:
         fan_paths={"1": Path("/x"), "2": Path("/x")},
         battery_sys_ids=["/org/freedesktop/UPower/devices/battery_BAT0"],
         has_nvidia=True, intel_gpu_freq_path=Path("/x"), intel_gpu_pci="0000:00:02.0",
+        amd_gpu_busy_path=Path("/x"), amd_gpu_vram_used_path=Path("/x"),
+        amd_gpu_vram_total_path=Path("/x"), amd_gpu_temp_path=Path("/x"),
+        amd_gpu_fan_path=Path("/x"), amd_gpu_freq_path=Path("/x"),
         net_device="wlan0", disk_io_device="nvme0n1", cpu_count=8,
         cpu_turbo_supported=True, has_backlight=True, has_wifi=True,
         battery_mouse_id="/m", battery_kbd_id="/k",
@@ -58,6 +61,8 @@ def _full_readings() -> Readings:
         battery_kbd=BatteryPeriph("Logi Kbd", "85%"),
         gpu_temp=60, gpu_usage=30, gpu_mem=40, gpu_dec=5, gpu_fan=25,
         gpu_intel_freq=900, gpu_intel_usage=20, gpu_intel_dec_usage=2,
+        gpu_amd_usage=35, gpu_amd_mem_usage=45, gpu_amd_temp=58,
+        gpu_amd_fan_speed=1100, gpu_amd_freq=2100,
         screen_brightness=75, system_updates=3, server_ok=True,
     )
 
@@ -86,6 +91,11 @@ def test_golden_render(name, vertical, kind, monkeypatch):
     # doesn't trigger and the width is config's own defaults — so the snapshot
     # doesn't depend on /tmp/pirostats_geom, which a live daemon writes and rewrites.
     monkeypatch.setattr(config, "detect_panel_geometry", lambda: PanelGeometry(vertical=True))
+    # NO machine block: load_config() would otherwise merge whichever one matches
+    # the machine running the suite (~/.config/pirostats/machines.toml included),
+    # so the snapshot would encode the contributor's hardware instead of the
+    # shipped defaults.
+    monkeypatch.setattr(config, "detect_machine", lambda machines: None)
     # FIXED time: battery_sys in the panel alternates percentage/watts based on
     # time.time() // interval — freezing it pins the phase, otherwise panel_v
     # would change every few seconds.

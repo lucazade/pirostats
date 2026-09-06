@@ -17,10 +17,11 @@ names resolve to nothing, hence the blanket F821 waiver. Only vulture parses it.
 # Thresholds are looked up by the item's own name: `getattr(cfg.thresholds,
 # hist_name)` in traces.spark_html, and items._thr(name)'s `getattr(cfg
 # .thresholds, name)` via the registry's `_thr("gpu_nvidia_mem_usage")` etc.
-# Most fields are also named literally somewhere; these three never are.
+# Most fields are also named literally somewhere; these never are.
 cpu_spark
 mem_spark
 gpu_nvidia_mem_usage
+gpu_amd_mem_usage
 
 # ── config.SensorOverrides ────────────────────────────────────────────────────
 # The manual hwmon specs are read by index in a loop:
@@ -44,6 +45,16 @@ gpu_mem
 screen_brightness
 _.gpu_mem
 _.screen_brightness
+# Same for the AMD readings: the registry names them as strings in
+# `value("gpu_amd_mem_usage", ...)`, `freq_value("gpu_amd_freq")` and
+# `fan_value("gpu_amd_fan_speed")`, and formatter._maxed_readings assigns them
+# for the canonical width. The bare gpu_amd_mem_usage is up with the thresholds:
+# vulture matches the name, so the one entry covers the Readings field too.
+gpu_amd_fan_speed
+gpu_amd_freq
+_.gpu_amd_mem_usage
+_.gpu_amd_fan_speed
+_.gpu_amd_freq
 
 # ── daemon._cleanup ───────────────────────────────────────────────────────────
 # The signal-handler signature Python calls it with; unused by name, required

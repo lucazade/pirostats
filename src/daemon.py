@@ -190,6 +190,7 @@ BOOT_WATCH: list[tuple[str, Callable[[Readings], bool]]] = [
     ("hd_temps",       lambda r: any(v is not None for v in r.hd_temps.values())),
     ("fan_speeds",     lambda r: any(v is not None for v in r.fan_speeds.values())),
     ("gpu_nvidia",     lambda r: r.gpu_temp is not None),
+    ("gpu_amd",        lambda r: r.gpu_amd_usage is not None),
     ("gpu_intel",      lambda r: r.gpu_intel_freq is not None),
     ("system_updates", lambda r: r.system_updates is not None),
     ("server_check",   lambda r: r.server_ok is not None),
@@ -299,6 +300,14 @@ def run_probe(cfg_path: Path | None) -> None:
     print(f"battery_kbd:     {hw.battery_kbd_id or '(not found)'}")
     print(f"intel_gpu:       {hw.intel_gpu_pci or '(not found)'}")
     print(f"has_nvidia:      {hw.has_nvidia}")
+    # A set of paths, not one flag: print the card plus which sensors resolved.
+    if hw.amd_gpu_busy_path:
+        opt = [n for n, p in (("temp", hw.amd_gpu_temp_path), ("fan", hw.amd_gpu_fan_path),
+                              ("freq", hw.amd_gpu_freq_path), ("vram", hw.amd_gpu_vram_total_path))
+               if p is not None]
+        print(f"amd_gpu:         {hw.amd_gpu_busy_path.parent.resolve().name} [{', '.join(opt) or 'usage only'}]")
+    else:
+        print("amd_gpu:         (not found)")
     print()
 
     r, _ = _warmed_readings(cfg, hw)

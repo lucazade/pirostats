@@ -41,6 +41,13 @@ _g_fan           = lambda f, r: bool(f._hw.fan_paths)
 _g_nvidia        = lambda f, r: f._hw.has_nvidia
 _g_intel_freq    = lambda f, r: f._hw.intel_gpu_freq_path is not None
 _g_intel_pci     = lambda f, r: f._hw.intel_gpu_pci is not None
+# One gate per path, not one per card: a card exposes only some of these
+# (an APU has no fan), so each row appears exactly where its sysfs file does.
+_g_amd           = lambda f, r: f._hw.amd_gpu_busy_path is not None
+_g_amd_temp      = lambda f, r: f._hw.amd_gpu_temp_path is not None
+_g_amd_fan       = lambda f, r: f._hw.amd_gpu_fan_path is not None
+_g_amd_freq      = lambda f, r: f._hw.amd_gpu_freq_path is not None
+_g_amd_vram      = lambda f, r: f._hw.amd_gpu_vram_total_path is not None
 _g_battery_sys   = lambda f, r: bool(f._hw.battery_sys_ids)
 _g_battery_mouse = lambda f, r: f._hw.battery_mouse_id is not None or f._cfg.battery.mouse_bolt is not None
 _g_battery_kbd   = lambda f, r: f._hw.battery_kbd_id is not None or f._cfg.battery.kbd_bolt is not None
@@ -107,6 +114,11 @@ METRICS: dict[str, Metric] = dict([
     _m("gpu_intel_freq",       needs={"gpu_intel_freq"}, gate=_g_intel_freq),
     _m("gpu_intel_usage",      needs={"gpu_intel_usage"}, gate=_g_intel_pci),
     _m("gpu_intel_dec_usage",  needs={"gpu_intel_dec"},   gate=_g_intel_pci),
+    _m("gpu_amd_usage",        needs={"gpu_amd"}, gate=_g_amd),
+    _m("gpu_amd_mem_usage",    needs={"gpu_amd"}, gate=_g_amd_vram),
+    _m("gpu_amd_temp",         needs={"gpu_amd"}, gate=_g_amd_temp),
+    _m("gpu_amd_fan_speed",    needs={"gpu_amd"}, gate=_g_amd_fan),
+    _m("gpu_amd_freq",         needs={"gpu_amd"}, gate=_g_amd_freq),
     _m("screen_brightness",    needs={"screen_brightness"}, gate=_g_backlight),
 
     # ── fans / batteries (multi-instance for the first three) ──

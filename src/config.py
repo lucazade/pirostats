@@ -239,6 +239,11 @@ class ThresholdConfig:
     gpu_nvidia_usage: list[int] = field(default_factory=lambda: [70, 90])
     gpu_nvidia_mem_usage: list[int] = field(default_factory=lambda: [60, 80])
     gpu_intel_usage: list[int] = field(default_factory=lambda: [70, 90])
+    # Same bands as Nvidia: these read amdgpu's `edge` sensor, whose range tracks
+    # the Nvidia figure closely (the hotter junction/mem sensors would not).
+    gpu_amd_usage: list[int] = field(default_factory=lambda: [70, 90])
+    gpu_amd_mem_usage: list[int] = field(default_factory=lambda: [60, 80])
+    gpu_amd_temp: list[int] = field(default_factory=lambda: [70, 80])
     hd_temp: list[int] = field(default_factory=lambda: [55, 60])
     # Batteries: inverted logic (low charge = alarm): [red, green]. A charge only
     # falls, so a green cutoff at 80 left four fifths of the range amber; the red
@@ -267,11 +272,12 @@ class NotifyThresholds:
     disk_usage: int = 80
     cpu_temp: int = 80
     gpu_nvidia_temp: int = 80
+    gpu_amd_temp: int = 80
     hd_temp: int = 60
     battery_sys: int = 10
     battery_mouse: int = 20
     battery_kbd: int = 20
-    # Debounce shared by cpu_temp/gpu_nvidia_temp/hd_temp (notifier._sustained):
+    # Debounce shared by cpu_temp/gpu_nvidia_temp/gpu_amd_temp/hd_temp (notifier._sustained):
     # seconds a reading must hold over its threshold to notify, and degrees it
     # must then fall below it to re-arm. Boost bursts cross the trip point for a
     # fraction of a second, so without these an idle machine alerts on noise.
@@ -292,6 +298,7 @@ class NotificationConfig:
     # correctly but constantly and read as noise — see config.toml [notifications].
     cpu_temp: bool = False
     gpu_nvidia_temp: bool = False
+    gpu_amd_temp: bool = False
     load_avg: bool = False
     hd_temp: bool = True
     battery_sys: bool = True
