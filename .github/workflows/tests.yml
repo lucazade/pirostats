@@ -1,0 +1,54 @@
+# The test suite IS the gate for this repo — there is no build step, and
+# sensors.py/daemon.py are deliberately uncovered (they need real sysfs, UPower,
+# psutil), so what runs here is the pure logic: config layering, the metric×form
+# registry, the Row/Cell model, the monospace serializer, the golden HTML
+# snapshots, plus the dead-code and lint gates.
+#
+# Everything the suite touches is faked (tests/test_golden_render.py builds a
+# complete HardwareInfo out of dummy paths), so a runner with no GPU, no
+# battery and no session bus reaches the same verdict a real machine does.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push to the same branch makes the run in flight pointless.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.11 is the floor the README promises (stdlib tomllib); the newest
+        # stable is what a rolling-release user actually runs it on.
+        python-version: ["3.11", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # psutil is the only unguarded third-party import in src/ (sensors.py).
+      # pynvml, PyGObject and bolt_battery's ctypes path are all behind
+      # try/except, so they are correctly absent here.
+      #
+      # vulture and ruff matter for a different reason: test_deadcode.py and
+      # test_lint.py SKIP when their tool is missing, so without this line the
+      # run would be green while two of the gates never executed.
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest psutil vulture ruff
+
+      # -rs prints the reason for every skip, so a gate that quietly stopped
+      # running is visible in the log instead of hiding behind a green check.
+      - name: Run the suite
+        run: python -m pytest tests/ -v -rs
