@@ -65,11 +65,11 @@ three families costs nothing on a machine that has one of them. AMD reads plain
 | `gpu_nvidia_dec_usage` | panel · tooltip | NVIDIA video-decoder utilization, %. | `Gpu decoder usage:  0%` |
 | `gpu_nvidia_temp` | panel · tooltip | NVIDIA GPU temperature. | `Gpu temp:  52°C` |
 | `gpu_nvidia_fan_speed` | panel · tooltip | NVIDIA fan, %; `off` when idle at 0. | `Gpu fan speed:  off` |
-| `gpu_amd_usage` | panel · tooltip | AMD GPU utilization, %. | `Gpu usage:  9%` |
-| `gpu_amd_mem_usage` | panel · tooltip | AMD VRAM occupancy (used/total), %. | `Gpu vram usage:  11%` |
-| `gpu_amd_temp` | panel · tooltip | AMD GPU temperature (the `edge` sensor). | `Gpu temp:  48°C` |
-| `gpu_amd_fan_speed` | panel · tooltip | AMD fan in RPM; `off` when idle at 0. | `Gpu fan speed:  off` |
-| `gpu_amd_freq` | panel · tooltip | AMD GPU clock frequency (`sclk`). | `Gpu freq:  144 MHz` |
+| `gpu_amd_usage` | panel · tooltip | AMD GPU utilization, %. | `Radeon usage:  9%` |
+| `gpu_amd_mem_usage` | panel · tooltip | AMD VRAM occupancy (used/total), %. | `Radeon vram usage:  11%` |
+| `gpu_amd_temp` | panel · tooltip | AMD GPU temperature (the `edge` sensor). | `Radeon temp:  48°C` |
+| `gpu_amd_fan_speed` | panel · tooltip | AMD fan in RPM; `off` when idle at 0. | `Radeon fan speed:  off` |
+| `gpu_amd_freq` | panel · tooltip | AMD GPU clock frequency (`sclk`). | `Radeon freq:  144 MHz` |
 | `gpu_intel_usage` | panel · tooltip | Intel iGPU utilization, %. | `Igpu usage:  0%` |
 | `gpu_intel_freq` | panel · tooltip | Intel iGPU clock frequency. | `Igpu freq:  300 MHz` |
 | `gpu_intel_dec_usage` | panel · tooltip | Intel iGPU video-decoder utilization, %. | `Igpu decoder:  0%` |
