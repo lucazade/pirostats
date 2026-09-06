@@ -26,7 +26,7 @@ check, notifier, atomic write), and each cache's freshness — writing to
 | `load_config` | ~3 ms |
 | `discover_hardware` | ~45–60 ms |
 | &nbsp;&nbsp;`_find_battery_sys` / `_find_peripherals` (UPower over GDBus) | most of it |
-| &nbsp;&nbsp;`_find_cpu_temp` / `_find_hd_temps` / `_find_fans` / `_detect_nvidia` / `_detect_net_device` | 1–2 ms each |
+| &nbsp;&nbsp;`_find_cpu_temp` / `_find_hd_temps` / `_find_fans` / `_detect_nvidia` / `_detect_amd_gpu` / `_detect_net_device` | 1–2 ms each |
 | First `collect` + format + write | ~60–90 ms |
 
 `discover_hardware` dominates startup — mostly the UPower device enumeration over
@@ -115,13 +115,15 @@ the item set actually changes (a disk mounted, hardware rescanned).
 **No subprocess in the hot path.** Forks are the expensive thing (see the
 `_detect_nvidia` note below), so `collect()` is fork-free at steady state:
 
-- hardware presence via sysfs (NVIDIA/Intel by PCI vendor id `0x10de`/`0x8086`,
-  class `0x03` display);
+- hardware presence via sysfs (NVIDIA/AMD/Intel by PCI vendor id
+  `0x10de`/`0x1002`/`0x8086`, class `0x03` display);
 - `battery_sys` reads `/sys/class/power_supply/BAT*/`; the mouse/keyboard
   batteries and the UPower device enumeration go over **GDBus** (`Gio` on the
   system bus) — a property read, no fork;
 - NVIDIA GPU stats via **`pynvml`** (`python-nvidia-ml-py`, ~0.3 ms, read every
-  poll); `gpu_intel_*` via sysfs + `/proc/[pid]/fdinfo` DRM counters;
+  poll); `gpu_intel_*` via sysfs + `/proc/[pid]/fdinfo` DRM counters; `gpu_amd_*`
+  via plain amdgpu sysfs (`gpu_busy_percent`, `mem_info_vram_*` and the card's
+  hwmon, ~0.5 ms, read every poll — no library, no fork, hence no TTL cache);
 - `system_updates`/`server_check` read a plain file written by an external
   checker (a `--user` timer, outside the repo) instead of running `pacman -Qu`
   or `ping` in the loop.
