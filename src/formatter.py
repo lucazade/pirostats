@@ -93,7 +93,7 @@ def _maxed_readings(r: Readings, hw: HardwareInfo) -> Readings:
     m.cpu_freq = 9999.0
     m.screen_brightness = m.wifi_signal = 100
     m.wifi_chains = [-100] * max(hw.wifi_antennas, len(m.wifi_chains), 2)   # "-100 dBm"
-    m.wifi_tx = m.wifi_rx = WifiRate(9999.9, 13, 8)      # 320MHz Wi-Fi 7 tops out past 9999.9, a rare wider row
+    m.wifi_tx = m.wifi_rx = WifiRate(9999, 13, 16)       # 320MHz Wi-Fi 7 tops out past 9999, a rare wider row
     m.net_up_bps = m.net_down_bps = 999_000_000          # -> "999M"
     m.disk_read_bps = m.disk_write_bps = 999_000_000
     m.ip_address = "255.255.255.255"                     # widest IPv4
@@ -847,16 +847,19 @@ class PanelFormatter:
     _WIFI_RATE_PANEL_WIDTH = 4
 
     def _wifi_rate(self, rate: Optional[WifiRate], name: str, tooltip: bool) -> Row:
-        """One direction of the link. Tooltip: 'Wifi TX:  MCS 5 NSS 2  1152.8 Mbit/s',
-        the MCS/NSS in the middle column like the battery's rate. Panel: the rate
-        alone, '1153' (Mbit/s) — MCS/NSS are for the tooltip. A legacy rate has no
-        MCS/NSS and shows the bitrate alone in both."""
+        """One direction of the link, in whole Mbit/s. Tooltip: 'Wifi TX: MCS 5 NSS 2
+        1153 Mbit/s', the MCS/NSS in the middle column like the battery's rate,
+        each number two columns wide ('MCS11', 'MCS 9') so the TX and RX rows line
+        up whatever the digits. Panel: the rate alone, '1153' — MCS/NSS are for
+        the tooltip. A legacy rate has no MCS/NSS and shows the bitrate alone."""
         ident = Ident(name, "value")
         params = [] if rate is None else [(key, v) for key, v in (("MCS", rate.mcs), ("NSS", rate.nss)) if v is not None]
         if tooltip:
-            val = _val_cell(EMPTY_VALUE if rate is None else f"{rate.mbit:.1f} Mbit/s", ident=ident)
-            return render_three_col_row(self._label_cell(ident, tooltip),
-                                        _aux_cell(" ".join(f"{key} {v}" for key, v in params), ident=ident), val)
+            val = _val_cell(EMPTY_VALUE if rate is None else f"{rate.mbit:.0f} Mbit/s", ident=ident)
+            # pad_right: at the canonical width the widest MCS/NSS would otherwise
+            # run straight into the rate, with the value's padding all used up.
+            aux = _aux_cell(" ".join(f"{key}{v:>2}" for key, v in params), ident=ident, pad_right=1 if params else 0)
+            return render_three_col_row(self._label_cell(ident, tooltip), aux, val)
         text = EMPTY_VALUE if rate is None else f"{rate.mbit:.0f}"
         return self._labelled(ident, tooltip, _val_cell(text, ident=ident, min_width=self._WIFI_RATE_PANEL_WIDTH))
 
