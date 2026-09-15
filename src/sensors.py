@@ -219,14 +219,6 @@ class _BatteryPeriphCache:
     gone: bool = False   # last read found nothing there: the path needs rediscovering
 
 @dataclass
-class _NetInfoCache:
-    device: str = ""
-    ip: str = ""
-    ssid: str = ""
-    ts: float = float("-inf")
-
-
-@dataclass
 class _RateState:
     """Prev sample for a bytes/s rate computed from two cumulative counters
     (net rx/tx, disk read/write). See _counter_rate."""
@@ -287,7 +279,6 @@ class DaemonState:
     battery_sys_cache: dict[str, _BatterySysCache] = field(default_factory=dict)
     battery_mouse_cache: _BatteryPeriphCache = field(default_factory=_BatteryPeriphCache)
     battery_kbd_cache: _BatteryPeriphCache = field(default_factory=_BatteryPeriphCache)
-    net_info_cache: _NetInfoCache = field(default_factory=_NetInfoCache)
     # Netlink sockets for the daemon's life (each reopens itself after an error).
     nl80211: Nl80211 = field(default_factory=Nl80211)
     routes: Routes = field(default_factory=Routes)
@@ -528,13 +519,12 @@ def collect(
     _sample_net_history(state, cfg, r)
 
     # net_device/net_ip/wifi_ssid/net_device_ip/wifi_ssid_signal share the
-    # single net_info read (the "net_info" capability).
+    # single net_info read (the "net_info" capability). Two netlink round trips,
+    # well under 1ms, so it's read every poll: an interface switch shows at once.
     if "net_info" in caps:
         with timed_section(timings, "net_info"):
-            info = _read_net_info_cached(state)
-            r.net_device   = info.device or None
-            r.ip_address   = info.ip or None
-            r.wifi_ssid    = info.ssid or None
+            device, r.ip_address, r.wifi_ssid = _read_net_info(state)
+            r.net_device = device
             # hw.net_device follows whichever interface is active right now: the
             # live read already knows the current route's device, so we adopt it
             # as soon as it changes (net_device_ip/net_speed's gate turns on right
@@ -544,12 +534,11 @@ def collect(
             # clear it, so the row stays visible with "--" instead of flickering
             # in/out. On an interface change the counters belong to a different
             # NIC: reset the rate state so the first diff doesn't emit a spurious spike.
-            if info.device and info.device != hw.net_device:
-                hw.net_device = info.device
+            if device and device != hw.net_device:
+                hw.net_device = device
                 state.net_rate = _RateState()
 
-    # The live link figures (signal, per-antenna signal, tx/rx rate) move every
-    # frame, so unlike the identity above they're read every poll: one nl80211
+    # The live link figures (signal, per-antenna signal, tx/rx rate): one nl80211
     # station dump, ~0.2ms. They follow the active route's interface, like the SSID.
     if "wifi_link" in caps and hw.net_device and _is_wireless(hw.net_device):
         with timed_section(timings, "wifi_link"):
@@ -855,10 +844,6 @@ def _detect_net_device() -> Optional[str]:
         routes.close()
 
 
-NET_INFO_TTL = 10.0   # seconds — route + SSID are two netlink round trips (<0.5ms),
-                       # but they barely change, so there's no reason to ask every poll
-
-
 def _is_wireless(device: str) -> bool:
     return Path(f"/sys/class/net/{device}/wireless").exists()
 
@@ -876,15 +861,6 @@ def _read_net_info(state: DaemonState) -> tuple[Optional[str], Optional[str], Op
     device, ip = state.routes.route_to(_ROUTE_PROBE)
     ssid = state.nl80211.ssid(device) if device and _is_wireless(device) else None
     return device, ip, ssid
-
-
-def _read_net_info_cached(state: DaemonState) -> _NetInfoCache:
-    c = state.net_info_cache
-    if time.monotonic() - c.ts >= NET_INFO_TTL:
-        device, ip, ssid = _read_net_info(state)
-        c.device, c.ip, c.ssid = device or "", ip or "", ssid or ""
-        c.ts = time.monotonic()
-    return c
 
 
 def _read_wifi_link(state: DaemonState, device: str, r: Readings) -> None:
