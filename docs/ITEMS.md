@@ -98,6 +98,8 @@ three families costs nothing on a machine that has one of them. AMD reads plain
 | --- | --- | --- | --- |
 | `net_speed` | panel · tooltip | Up/down throughput (adapts to orientation). | `Upload: 2K   Dload: 0` |
 | `wifi_signal` | panel · tooltip | Wi-Fi signal strength, %. | `Signal:  72%` |
+| `wifi_ant1` / `wifi_ant2` | panel · tooltip | Signal of each antenna, dBm. `wifi_ant2` appears only on a radio with a second antenna. | `Antenna 1:  -57 dBm` |
+| `wifi_tx` / `wifi_rx` | panel · tooltip | Link rate per direction, with its MCS (modulation index) and NSS (spatial streams) in the middle. The panel shows one at a time, rotating every 5 s: `1153`, `MCS5`, `NSS2`. | `Wifi TX: MCS 5 NSS 2  1152.8 Mbit/s` |
 | `net_device` | tooltip | Active network interface name. | `Network: wlan0` |
 | `net_ip` | tooltip | Local IP address. | `IP: 192.168.1.5` |
 | `net_device_ip` | tooltip | Interface and IP together on one row. | `Network: wlan0 - 192.168.1.5` |

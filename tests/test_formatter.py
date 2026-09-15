@@ -1,6 +1,7 @@
 from config import Config, Section, Surface
 from formatter import PanelFormatter, _fmt_perc, _net_fmt, _normalize_separators, _val_cell, group_rows_into_blocks
 from mono_render import global_width_of
+from nl80211 import Rate as WifiRate
 from render_model import Ident, Separator
 from sensors import HardwareInfo, Readings, DiskUsage, BatterySys, BatteryPeriph
 import traces
@@ -135,7 +136,7 @@ def _guard_full_hw() -> HardwareInfo:
         hd_temp_paths={"nvme0": "/x", "sda": "/x"}, fan_paths={"1": "/x", "2": "/x"},
         battery_sys_ids=["/BAT0"], has_nvidia=True, intel_gpu_freq_path="/x", intel_gpu_pci="0000:00:02.0",
         net_device="wlan0", disk_io_device="nvme0n1", cpu_count=8,
-        cpu_turbo_supported=True, has_backlight=True, has_wifi=True,
+        cpu_turbo_supported=True, has_backlight=True, has_wifi=True, wifi_antennas=2,
         battery_mouse_id="/m", battery_kbd_id="/k",
         disk_smart_drives={"nvme0": ("/d0", "nvme", False), "sda": ("/d1", "ata", True)},
     )
@@ -158,6 +159,9 @@ def _guard_readings(hi: bool) -> Readings:
         net_up_bps=999_000_000 if hi else 0, net_down_bps=999_000_000 if hi else 0,
         net_device="wlan0", ip_address="255.255.255.255" if hi else "1.1.1.1",
         wifi_ssid="Home", wifi_signal=100 if hi else 0,
+        wifi_chains=[-100, -100] if hi else [-1, -1],
+        wifi_tx=WifiRate(9999.9, 13, 8) if hi else WifiRate(1.0, 0, 1),
+        wifi_rx=WifiRate(9999.9, 13, 8) if hi else WifiRate(1.0),
         disk_read_bps=999_000_000 if hi else 0, disk_write_bps=999_000_000 if hi else 0,
         disk_usage={"/mnt/DataStore": DiskUsage(100 if hi else 0, DISK_TOTAL if hi else 0, DISK_TOTAL)},
         disk_smart={"nvme0": True, "sda": True},
@@ -561,3 +565,64 @@ def test_normalize_section_edge_separator_becomes_inter_section_gap():
     cpu, mem, temp = _row("cpu"), _row("mem"), _row("temp")
     out = _normalize_separators([cpu, mem, Separator(size="small"), temp])
     assert out == [cpu, mem, Separator(size="small"), temp]
+
+
+# ── wifi link rows ────────────────────────────────────────────────────────────
+
+def _wifi_fmt(glyphs: bool = True) -> PanelFormatter:
+    cfg = Config()
+    cfg.panel.glyphs = glyphs
+    return PanelFormatter(cfg, _bare_hw(net_device="wlan0", has_wifi=True))
+
+
+def test_wifi_rate_tooltip_puts_mcs_nss_in_the_middle_column():
+    row = _wifi_fmt()._wifi_rate(WifiRate(1152.8, 5, 2), "wifi_tx", tooltip=True)
+    assert [c.text for c in row[1:]] == ["MCS 5 NSS 2", "1152.8 Mbit/s"]
+
+
+def test_wifi_rate_panel_rotates_through_rate_mcs_nss(monkeypatch):
+    import formatter
+    fmt, rate = _wifi_fmt(), WifiRate(1152.8, 5, 2)
+    seen = []
+    for step in range(3):
+        monkeypatch.setattr(formatter.time, "time", lambda s=step: s * formatter._ROTATE_SECONDS)
+        seen.append(fmt._wifi_rate(rate, "wifi_rx", tooltip=False)[-1].text)
+    assert seen == ["1153", "MCS5", "NSS2"]
+
+
+def test_wifi_rate_legacy_shows_the_bitrate_alone(monkeypatch):
+    import formatter
+    monkeypatch.setattr(formatter.time, "time", lambda: formatter._ROTATE_SECONDS)
+    fmt = _wifi_fmt()
+    assert fmt._wifi_rate(WifiRate(54.0), "wifi_tx", tooltip=False)[-1].text == "54"
+    assert fmt._wifi_rate(WifiRate(54.0), "wifi_tx", tooltip=True)[1].text == ""
+
+
+def test_wifi_rate_missing_link_is_placeholder():
+    fmt = _wifi_fmt()
+    assert fmt._wifi_rate(None, "wifi_tx", tooltip=True)[-1].text == "--"
+    assert fmt._wifi_rate(None, "wifi_tx", tooltip=False)[-1].text == "--"
+
+
+def test_wifi_ant_reads_its_chain_in_dbm_with_threshold_class():
+    fmt, r = _wifi_fmt(), Readings(wifi_chains=[-57, -85])
+    assert fmt._wifi_ant(r, 0, tooltip=True)[-1].text == "-57 dBm"
+    assert "good" in fmt._wifi_ant(r, 0, tooltip=True)[-1].css_class
+    assert "crit" in fmt._wifi_ant(r, 1, tooltip=False)[-1].css_class
+    assert fmt._wifi_ant(Readings(wifi_chains=[-57]), 1, tooltip=True)[-1].text == "--"
+
+
+def test_wifi_rows_drop_the_glyph_in_a_glyphless_panel():
+    fmt = _wifi_fmt(glyphs=False)
+    assert len(fmt._wifi_ant(Readings(wifi_chains=[-57]), 0, tooltip=False)) == 1
+    assert len(fmt._wifi_rate(WifiRate(100.0, 3, 1), "wifi_tx", tooltip=False)) == 1
+
+
+def test_wifi_ant2_gate_follows_the_radio_or_the_live_chains():
+    one = PanelFormatter(Config(), _bare_hw(has_wifi=True, wifi_antennas=1))
+    two = PanelFormatter(Config(), _bare_hw(has_wifi=True, wifi_antennas=2))
+    unknown = PanelFormatter(Config(), _bare_hw(has_wifi=True))
+    assert not one._available("wifi_ant2", Readings(wifi_chains=[-50]))
+    assert two._available("wifi_ant2", Readings())
+    assert unknown._available("wifi_ant2", Readings(wifi_chains=[-50, -52]))
+    assert not unknown._available("wifi_ant2", Readings())

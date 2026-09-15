@@ -37,6 +37,10 @@ _g_cpu_turbo     = lambda f, r: f._hw.cpu_turbo_supported
 _g_net           = lambda f, r: f._hw.net_device is not None
 _g_disk_io       = lambda f, r: f._hw.disk_io_device is not None
 _g_wifi          = lambda f, r: f._hw.has_wifi
+# The second antenna's row exists only on a radio that has one. The antenna count
+# comes from the driver at startup; one that doesn't report it (0) falls back to
+# the chains the live link actually shows.
+_g_wifi_ant2     = lambda f, r: f._hw.has_wifi and (f._hw.wifi_antennas >= 2 or len(r.wifi_chains) >= 2)
 _g_fan           = lambda f, r: bool(f._hw.fan_paths)
 _g_nvidia        = lambda f, r: f._hw.has_nvidia
 _g_intel_freq    = lambda f, r: f._hw.intel_gpu_freq_path is not None
@@ -127,15 +131,20 @@ METRICS: dict[str, Metric] = dict([
     _m("battery_mouse", needs={"battery_mouse"}, gate=_g_battery_mouse),
     _m("battery_kbd",   needs={"battery_kbd"},   gate=_g_battery_kbd),
 
-    # ── network: speed (adaptive DUO) and identity (tooltip-only, composed value) ──
+    # ── network: speed (adaptive DUO), identity (tooltip-only) and the wifi link ──
     _m("net_speed", needs={"net_speed"}, gate=_g_net, intrinsic_shape=Shape.DUO),
     _m("disk_io",   needs={"disk_io"},   gate=_g_disk_io, intrinsic_shape=Shape.DUO),
     _m("net_device",    needs={"net_info"}, gate=_g_net, surfaces=Surface.TOOLTIP),
     _m("net_ip",        needs={"net_info"}, gate=_g_net, surfaces=Surface.TOOLTIP),
     _m("net_device_ip", needs={"net_info"}, gate=_g_net, surfaces=Surface.TOOLTIP),
     _m("wifi_ssid",        needs={"net_info"}, gate=_g_wifi, surfaces=Surface.TOOLTIP),
-    _m("wifi_signal",      needs={"net_info"}, gate=_g_wifi),
-    _m("wifi_ssid_signal", needs={"net_info"}, gate=_g_wifi, surfaces=Surface.TOOLTIP),
+    _m("wifi_signal",      needs={"net_info", "wifi_link"}, gate=_g_wifi),
+    _m("wifi_ssid_signal", needs={"net_info", "wifi_link"}, gate=_g_wifi, surfaces=Surface.TOOLTIP),
+    # The live link, per antenna and per direction (rate + MCS/NSS).
+    _m("wifi_ant1",        needs={"net_info", "wifi_link"}, gate=_g_wifi),
+    _m("wifi_ant2",        needs={"net_info", "wifi_link"}, gate=_g_wifi_ant2),
+    _m("wifi_tx",          needs={"net_info", "wifi_link"}, gate=_g_wifi),
+    _m("wifi_rx",          needs={"net_info", "wifi_link"}, gate=_g_wifi),
 
     # ── system (tooltip-only) ──
     _m("uptime",      needs={"uptime"},   surfaces=Surface.TOOLTIP),

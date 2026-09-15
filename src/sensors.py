@@ -19,6 +19,7 @@ from typing import Callable, Optional
 import psutil
 
 from config import BRAILLE_LENGTH_MULTIPLIER, Config, SensorOverrides
+from nl80211 import Nl80211, Rate as WifiRate
 from registry import needed_capabilities
 
 try:
@@ -171,6 +172,9 @@ class HardwareInfo:
     cpu_turbo_supported: bool           # turbo/boost knob exists in sysfs
     has_backlight: bool                 # a backlight device exists
     has_wifi: bool                      # a wireless interface exists
+    # Receive antennas on the radio (nl80211's available-RX mask), gating the
+    # per-antenna signal rows; 0 when the driver doesn't say (see _g_wifi_ant).
+    wifi_antennas: int = 0
 
     # AMD needs no library or fork (unlike Nvidia): every reading is a sysfs file,
     # resolved once here. Each is independently optional and gates its own metric.
@@ -218,7 +222,6 @@ class _NetInfoCache:
     device: str = ""
     ip: str = ""
     ssid: str = ""
-    signal_pct: Optional[int] = None
     ts: float = float("-inf")
 
 
@@ -284,6 +287,8 @@ class DaemonState:
     battery_mouse_cache: _BatteryPeriphCache = field(default_factory=_BatteryPeriphCache)
     battery_kbd_cache: _BatteryPeriphCache = field(default_factory=_BatteryPeriphCache)
     net_info_cache: _NetInfoCache = field(default_factory=_NetInfoCache)
+    # One nl80211 socket for the daemon's life (it reopens itself after an error).
+    nl80211: Nl80211 = field(default_factory=Nl80211)
 
     # HD temp cache (keyed by device label, e.g. "nvme0"): controller-side
     # latency on the hwmon read, not a software cost — TTL smooths it out.
@@ -327,7 +332,10 @@ class Readings:
     net_device: Optional[str] = None     # e.g. "wlan0", live-detected (handles interface switches)
     ip_address: Optional[str] = None
     wifi_ssid: Optional[str] = None
-    wifi_signal: Optional[int] = None    # %, converted from dBm (see _read_net_info)
+    wifi_signal: Optional[int] = None    # %, converted from dBm (see _read_wifi_link)
+    wifi_chains: list[int] = field(default_factory=list)   # dBm per antenna
+    wifi_tx: Optional[WifiRate] = None
+    wifi_rx: Optional[WifiRate] = None
 
     disk_read_bps: Optional[int] = None
     disk_write_bps: Optional[int] = None
@@ -390,6 +398,7 @@ def discover_hardware(cfg: Config) -> HardwareInfo:
         cpu_turbo_supported = _detect_cpu_turbo_supported(),
         has_backlight   = _detect_has_backlight(),
         has_wifi        = _detect_has_wifi(),
+        wifi_antennas   = _detect_wifi_antennas(),
         # Disk identity (for disk_smart) is discovered independently of
         # hd_temp_paths: UDisks2 sees every disk with an ATA/NVMe SMART
         # interface, even ones hwmon exposes no temperature sensor for.
@@ -516,7 +525,7 @@ def collect(
             r.net_up_bps, r.net_down_bps = _read_net_speed(state, hw.net_device)
     _sample_net_history(state, cfg, r)
 
-    # net_device/net_ip/wifi_ssid/wifi_signal/net_device_ip/wifi_ssid_signal share the
+    # net_device/net_ip/wifi_ssid/net_device_ip/wifi_ssid_signal share the
     # single net_info read (the "net_info" capability).
     if "net_info" in caps:
         with timed_section(timings, "net_info"):
@@ -524,7 +533,6 @@ def collect(
             r.net_device   = info.device or None
             r.ip_address   = info.ip or None
             r.wifi_ssid    = info.ssid or None
-            r.wifi_signal  = info.signal_pct
             # hw.net_device follows whichever interface is active right now: the
             # live read already knows the current route's device, so we adopt it
             # as soon as it changes (net_device_ip/net_speed's gate turns on right
@@ -537,6 +545,13 @@ def collect(
             if info.device and info.device != hw.net_device:
                 hw.net_device = info.device
                 state.net_rate = _RateState()
+
+    # The live link figures (signal, per-antenna signal, tx/rx rate) move every
+    # frame, so unlike the identity above they're read every poll: one nl80211
+    # station dump, ~0.2ms. They follow the active route's interface, like the SSID.
+    if "wifi_link" in caps and hw.net_device and _is_wireless(hw.net_device):
+        with timed_section(timings, "wifi_link"):
+            _read_wifi_link(state, hw.net_device, r)
 
     if "disk_io" in caps and hw.disk_io_device:
         with timed_section(timings, "disk_io"):
@@ -847,8 +862,8 @@ def _detect_net_device() -> Optional[str]:
     return None
 
 
-NET_INFO_TTL = 10.0   # seconds — 'ip route get' + 'iw dev link' cost ~5ms combined,
-                       # not worth running every poll for data that barely changes
+NET_INFO_TTL = 10.0   # seconds — 'ip route get' costs a fork (~3ms), not worth
+                       # running every poll for data that barely changes
 
 
 def _is_wireless(device: str) -> bool:
@@ -861,10 +876,10 @@ def _dbm_to_pct(dbm: int) -> int:
     return max(0, min(100, 2 * (dbm + 100)))
 
 
-def _read_net_info() -> tuple[Optional[str], Optional[str], Optional[str], Optional[int]]:
-    """Returns (device, ip, ssid, signal_pct) for the currently active route.
+def _read_net_info(nl: Nl80211) -> tuple[Optional[str], Optional[str], Optional[str]]:
+    """Returns (device, ip, ssid) for the currently active route.
     device/ip come from the same 'ip route get' call (one subprocess, not
-    two); ssid/signal only get queried when that device is wireless."""
+    two); the ssid is only asked of nl80211 when that device is wireless."""
     device = ip = None
     try:
         out = subprocess.check_output(
@@ -874,34 +889,28 @@ def _read_net_info() -> tuple[Optional[str], Optional[str], Optional[str], Optio
         ip = _token_after(tokens, "src")
     except _SUBPROCESS_ERRORS:
         pass
-
-    ssid = None
-    signal_pct = None
-    if device and _is_wireless(device):
-        try:
-            out = subprocess.check_output(["iw", "dev", device, "link"], text=True, timeout=3)
-            for line in out.splitlines():
-                line = line.strip()
-                if line.startswith("SSID:"):
-                    ssid = line.removeprefix("SSID:").strip()
-                elif line.startswith("signal:"):
-                    try:
-                        signal_pct = _dbm_to_pct(int(line.split()[1]))
-                    except (ValueError, IndexError):
-                        pass
-        except _SUBPROCESS_ERRORS:
-            pass
-
-    return device, ip, ssid, signal_pct
+    ssid = nl.ssid(device) if device and _is_wireless(device) else None
+    return device, ip, ssid
 
 
 def _read_net_info_cached(state: DaemonState) -> _NetInfoCache:
     c = state.net_info_cache
     if time.monotonic() - c.ts >= NET_INFO_TTL:
-        device, ip, ssid, signal_pct = _read_net_info()
-        c.device, c.ip, c.ssid, c.signal_pct = device or "", ip or "", ssid or "", signal_pct
+        device, ip, ssid = _read_net_info(state.nl80211)
+        c.device, c.ip, c.ssid = device or "", ip or "", ssid or ""
         c.ts = time.monotonic()
     return c
+
+
+def _read_wifi_link(state: DaemonState, device: str, r: Readings) -> None:
+    """Fill the live link fields from one nl80211 station dump. Not associated
+    (or the read failed) leaves them empty, which renders as '--'."""
+    sta = state.nl80211.station(device)
+    if sta is None:
+        return
+    r.wifi_signal = _dbm_to_pct(sta.signal) if sta.signal is not None else None
+    r.wifi_chains = list(sta.chains)
+    r.wifi_tx, r.wifi_rx = sta.tx, sta.rx
 
 
 def _resolve_mount_device(mount: str) -> Optional[str]:
@@ -1129,6 +1138,23 @@ def _detect_has_wifi() -> bool:
         return any(_is_wireless(n.name) for n in Path("/sys/class/net").iterdir())
     except OSError:
         return False
+
+
+def _detect_wifi_antennas() -> int:
+    """Receive antennas of the first wireless radio that reports them (a laptop
+    has one radio; a second USB dongle is the rare case this simplifies)."""
+    nl = Nl80211()
+    try:
+        for n in sorted(Path("/sys/class/net").iterdir()):
+            if _is_wireless(n.name):
+                count = nl.antennas(n.name)
+                if count:
+                    return count
+    except OSError:
+        pass
+    finally:
+        nl.close()
+    return 0
 
 
 def _detect_nvidia() -> bool:

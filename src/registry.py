@@ -129,13 +129,17 @@ _RENDER.update({
     ("battery_mouse", Form.VALUE): (lambda f, ident, r, t: [f._battery_periph(r.battery_mouse, "battery_mouse", t)]),
     ("battery_kbd", Form.VALUE): (lambda f, ident, r, t: [f._battery_periph(r.battery_kbd, "battery_kbd", t)]),
 
-    # ── network / wifi (composed values, tooltip-only) ──
+    # ── network / wifi ──
     ("net_device", Form.VALUE): (lambda f, ident, r, t: f._string_row("net_device", r.net_device, t)),
     ("net_ip", Form.VALUE): (lambda f, ident, r, t: f._string_row("net_ip", r.ip_address, t)),
     ("net_device_ip", Form.VALUE): (lambda f, ident, r, t: f._net_device_ip(r, t)),
     ("wifi_ssid", Form.VALUE): (lambda f, ident, r, t: f._string_row("wifi_ssid", r.wifi_ssid, t)),
     ("wifi_signal", Form.VALUE): (lambda f, ident, r, t: f._wifi_signal(r, t)),
     ("wifi_ssid_signal", Form.VALUE): (lambda f, ident, r, t: f._wifi_ssid_signal(r, t)),
+    ("wifi_ant1", Form.VALUE): (lambda f, ident, r, t: [f._wifi_ant(r, 0, t)]),
+    ("wifi_ant2", Form.VALUE): (lambda f, ident, r, t: [f._wifi_ant(r, 1, t)]),
+    ("wifi_tx", Form.VALUE): (lambda f, ident, r, t: [f._wifi_rate(r.wifi_tx, "wifi_tx", t)]),
+    ("wifi_rx", Form.VALUE): (lambda f, ident, r, t: [f._wifi_rate(r.wifi_rx, "wifi_rx", t)]),
 
     # ── system ──
     ("uptime", Form.VALUE): (lambda f, ident, r, t: [f._uptime(r, t)]),

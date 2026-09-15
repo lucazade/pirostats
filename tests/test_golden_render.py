@@ -19,6 +19,7 @@ import pytest
 import config
 from config import load_config, apply_canonical_width, PanelGeometry
 from formatter import PanelFormatter
+from nl80211 import Rate as WifiRate
 from sensors import HardwareInfo, Readings, DiskUsage, BatterySys, BatteryPeriph
 
 GOLDEN = Path(__file__).parent / "golden"
@@ -35,7 +36,7 @@ def _full_hw() -> HardwareInfo:
         amd_gpu_vram_total_path=Path("/x"), amd_gpu_temp_path=Path("/x"),
         amd_gpu_fan_path=Path("/x"), amd_gpu_freq_path=Path("/x"),
         net_device="wlan0", disk_io_device="nvme0n1", cpu_count=8,
-        cpu_turbo_supported=True, has_backlight=True, has_wifi=True,
+        cpu_turbo_supported=True, has_backlight=True, has_wifi=True, wifi_antennas=2,
         battery_mouse_id="/m", battery_kbd_id="/k",
         disk_smart_drives={"nvme0": ("/d0", "nvme", False), "sda": ("/d1", "ata", True)},
     )
@@ -51,6 +52,7 @@ def _full_readings() -> Readings:
         mem_usage=42, mem_used_gb=13, mem_total_gb=32, swap_usage=10,
         net_up_bps=500000, net_down_bps=2000000,
         net_device="wlan0", ip_address="192.168.1.5", wifi_ssid="MyWifi", wifi_signal=80,
+        wifi_chains=[-57, -71], wifi_tx=WifiRate(1152.8, 5, 2), wifi_rx=WifiRate(1729.6, 8, 2),
         disk_read_bps=1500000, disk_write_bps=800000,
         disk_usage={"/": DiskUsage(50, 100, 200), "/mnt/data": DiskUsage(70, 700, 1000)},
         disk_smart={"nvme0": True, "sda": True},
