@@ -19,6 +19,7 @@ from typing import Callable, Optional
 import psutil
 
 from config import BRAILLE_LENGTH_MULTIPLIER, Config, SensorOverrides
+from netlink import Routes
 from nl80211 import Nl80211, Rate as WifiRate
 from registry import needed_capabilities
 
@@ -287,8 +288,9 @@ class DaemonState:
     battery_mouse_cache: _BatteryPeriphCache = field(default_factory=_BatteryPeriphCache)
     battery_kbd_cache: _BatteryPeriphCache = field(default_factory=_BatteryPeriphCache)
     net_info_cache: _NetInfoCache = field(default_factory=_NetInfoCache)
-    # One nl80211 socket for the daemon's life (it reopens itself after an error).
+    # Netlink sockets for the daemon's life (each reopens itself after an error).
     nl80211: Nl80211 = field(default_factory=Nl80211)
+    routes: Routes = field(default_factory=Routes)
 
     # HD temp cache (keyed by device label, e.g. "nvme0"): controller-side
     # latency on the hwmon read, not a software cost — TTL smooths it out.
@@ -840,30 +842,21 @@ def _find_fans(ovr: SensorOverrides) -> dict[str, Path]:
 _SUBPROCESS_ERRORS = (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError)
 
 
-def _token_after(tokens: list[str], key: str) -> Optional[str]:
-    """Token immediately following `key` in an `ip route` token list (e.g.
-    the device after 'dev', the address after 'src'), or None if absent."""
-    if key in tokens:
-        idx = tokens.index(key)
-        if idx + 1 < len(tokens):
-            return tokens[idx + 1]
-    return None
+# The address whose route decides "the" interface: any public IPv4 would do, the
+# kernel only looks the route up (nothing is sent), so the default route answers.
+_ROUTE_PROBE = "8.8.8.8"
 
 
 def _detect_net_device() -> Optional[str]:
-    for args in (["ip", "route", "get", "8.8.8.8"], ["ip", "route", "show", "default"]):
-        try:
-            out = subprocess.check_output(args, text=True, timeout=3)
-        except _SUBPROCESS_ERRORS:
-            continue
-        dev = _token_after(out.split(), "dev")
-        if dev:
-            return dev
-    return None
+    routes = Routes()
+    try:
+        return routes.route_to(_ROUTE_PROBE)[0]
+    finally:
+        routes.close()
 
 
-NET_INFO_TTL = 10.0   # seconds — 'ip route get' costs a fork (~3ms), not worth
-                       # running every poll for data that barely changes
+NET_INFO_TTL = 10.0   # seconds — route + SSID are two netlink round trips (<0.5ms),
+                       # but they barely change, so there's no reason to ask every poll
 
 
 def _is_wireless(device: str) -> bool:
@@ -876,27 +869,19 @@ def _dbm_to_pct(dbm: int) -> int:
     return max(0, min(100, 2 * (dbm + 100)))
 
 
-def _read_net_info(nl: Nl80211) -> tuple[Optional[str], Optional[str], Optional[str]]:
-    """Returns (device, ip, ssid) for the currently active route.
-    device/ip come from the same 'ip route get' call (one subprocess, not
-    two); the ssid is only asked of nl80211 when that device is wireless."""
-    device = ip = None
-    try:
-        out = subprocess.check_output(
-            ["ip", "route", "get", "8.8.8.8"], text=True, timeout=3)
-        tokens = out.split()
-        device = _token_after(tokens, "dev")
-        ip = _token_after(tokens, "src")
-    except _SUBPROCESS_ERRORS:
-        pass
-    ssid = nl.ssid(device) if device and _is_wireless(device) else None
+def _read_net_info(state: DaemonState) -> tuple[Optional[str], Optional[str], Optional[str]]:
+    """Returns (device, ip, ssid) for the currently active route: device and ip
+    from one route lookup, the ssid asked of nl80211 only when that device is
+    wireless."""
+    device, ip = state.routes.route_to(_ROUTE_PROBE)
+    ssid = state.nl80211.ssid(device) if device and _is_wireless(device) else None
     return device, ip, ssid
 
 
 def _read_net_info_cached(state: DaemonState) -> _NetInfoCache:
     c = state.net_info_cache
     if time.monotonic() - c.ts >= NET_INFO_TTL:
-        device, ip, ssid = _read_net_info(state.nl80211)
+        device, ip, ssid = _read_net_info(state)
         c.device, c.ip, c.ssid = device or "", ip or "", ssid or ""
         c.ts = time.monotonic()
     return c
