@@ -77,6 +77,13 @@
 .active { color: #232629; }
 .deactive { color: #c0392b; }
 
+/* Wifi antenna signal: green when strong, unlike the neutral .good everywhere
+   else — a strong antenna is worth seeing at a glance. The tooltip row nests one
+   span per antenna; the panel's per-antenna items carry the class on the cell. */
+.item-wifi_ant .good { color: #27ae60; }
+.item-wifi_ant1.good { color: #27ae60; }
+.item-wifi_ant2.good { color: #27ae60; }
+
 
 /* ── Bar ───────────────────────────────────────────────────────────────── */
 

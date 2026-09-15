@@ -57,18 +57,11 @@ _TOP_PROCESS_COMM_MIN  = 15                    # base COMMAND column (grows to f
 _TOP_PROCESS_SIDE_COLS = 2 + 1 + 4 + 1 + 5     # gaps + %CPU + %MEM around PID/COMMAND
 _TOP_PROCESS_MIN_WIDTH = _TOP_PROCESS_MIN_PID + _TOP_PROCESS_COMM_MIN + _TOP_PROCESS_SIDE_COLS  # = 34
 
-# Seconds each value of a panel rotation stays on screen (the battery's %/watt,
-# the wifi rate's Mbit/MCS/NSS). How the item behaves, not a setting: the panel
-# has room for one value at a time, and this is the dwell that reads as
-# deliberate rather than flickery. The tooltip has the room for all of them, so
-# it shows them side by side instead.
-_ROTATE_SECONDS = 5
-
-
-def _rotating(values: list[str]) -> str:
-    """The value of a panel rotation due now. Keyed to the wall clock, not a
-    poll counter, so the dwell holds whatever the poll interval."""
-    return values[(int(time.time()) // _ROTATE_SECONDS) % len(values)]
+# Seconds each half of the panel battery's %/watt alternation stays on screen.
+# How the item behaves, not a setting: the panel has room for one value at a
+# time, and this is the dwell that reads as deliberate rather than flickery.
+# The tooltip has the room for both, so it shows them side by side instead.
+_BATTERY_ALTERNATE_SECONDS = 5
 
 
 def _net_fmt(bps: int) -> str:
@@ -831,6 +824,17 @@ class PanelFormatter:
         return self._labelled(ident, tooltip, _val_cell(
             text, css_class_battery(dbm, thr_low, thr_high), ident=ident, min_width=PERCENT_PANEL_WIDTH))
 
+    def _wifi_ants(self, r: Readings, tooltip: bool) -> Row:
+        """Every antenna's signal on one tooltip row, '-61 / -53 dBm', each value
+        colored on its own like _wifi_ant."""
+        ident = Ident("wifi_ant", "value")
+        label_cell = self._label_cell(ident, tooltip)
+        if not r.wifi_chains:
+            return [label_cell, _val_cell(EMPTY_VALUE, ident=ident)]
+        thr_low, thr_high = self._cfg.thresholds.wifi_ant
+        parts = [f'<span class="{css_class_battery(dbm, thr_low, thr_high)}">{dbm}</span>' for dbm in r.wifi_chains]
+        return [label_cell, _val_cell(" / ".join(parts) + " dBm", ident=ident)]
+
     def _labelled(self, ident: Ident, tooltip: bool, val: Cell) -> Row:
         """A (label, value) row, dropping the label in a panel with `glyphs = false`
         the way items.label() does for the regular items."""
@@ -838,22 +842,22 @@ class PanelFormatter:
             return [val]
         return [self._label_cell(ident, tooltip), val]
 
-    # The panel's rotating wifi rate is at most 'MCS13' wide; the column is held
-    # there so the value doesn't shift the items after it as it rotates.
-    _WIFI_RATE_PANEL_WIDTH = 5
+    # The panel's wifi rate in whole Mbit/s: four digits up to Wi-Fi 7's usual
+    # rates, held there so a 3-digit dip doesn't shift the items after it.
+    _WIFI_RATE_PANEL_WIDTH = 4
 
     def _wifi_rate(self, rate: Optional[WifiRate], name: str, tooltip: bool) -> Row:
         """One direction of the link. Tooltip: 'Wifi TX:  MCS 5 NSS 2  1152.8 Mbit/s',
-        the MCS/NSS in the middle column like the battery's rate. Panel: one of
-        '1153' (Mbit/s), 'MCS5', 'NSS2' at a time, rotating. A legacy rate has no
-        MCS/NSS and shows the bitrate alone."""
+        the MCS/NSS in the middle column like the battery's rate. Panel: the rate
+        alone, '1153' (Mbit/s) — MCS/NSS are for the tooltip. A legacy rate has no
+        MCS/NSS and shows the bitrate alone in both."""
         ident = Ident(name, "value")
         params = [] if rate is None else [(key, v) for key, v in (("MCS", rate.mcs), ("NSS", rate.nss)) if v is not None]
         if tooltip:
             val = _val_cell(EMPTY_VALUE if rate is None else f"{rate.mbit:.1f} Mbit/s", ident=ident)
             return render_three_col_row(self._label_cell(ident, tooltip),
                                         _aux_cell(" ".join(f"{key} {v}" for key, v in params), ident=ident), val)
-        text = EMPTY_VALUE if rate is None else _rotating([f"{rate.mbit:.0f}"] + [f"{key}{v}" for key, v in params])
+        text = EMPTY_VALUE if rate is None else f"{rate.mbit:.0f}"
         return self._labelled(ident, tooltip, _val_cell(text, ident=ident, min_width=self._WIFI_RATE_PANEL_WIDTH))
 
     def _net_device_ip(self, r: Readings, tooltip: bool) -> list[Row]:
@@ -1016,7 +1020,10 @@ class PanelFormatter:
             return render_three_col_row(
                 label_cell, extra_cell, _val_cell(bat.perc, cls, ident=Ident("battery_sys", "value")))
 
-        val = _rotating([rate_str, _fmt_perc(pv, tooltip=False)]) if rate_str else _fmt_perc(pv, tooltip=False)
+        if rate_str and (int(time.time()) // _BATTERY_ALTERNATE_SECONDS) % 2 == 0:
+            val = rate_str
+        else:
+            val = _fmt_perc(pv, tooltip=False)
         return [label_cell, _val_cell(val, cls, ident=Ident("battery_sys", "value"))]
 
     def _battery_periph(

@@ -580,19 +580,11 @@ def test_wifi_rate_tooltip_puts_mcs_nss_in_the_middle_column():
     assert [c.text for c in row[1:]] == ["MCS 5 NSS 2", "1152.8 Mbit/s"]
 
 
-def test_wifi_rate_panel_rotates_through_rate_mcs_nss(monkeypatch):
-    import formatter
-    fmt, rate = _wifi_fmt(), WifiRate(1152.8, 5, 2)
-    seen = []
-    for step in range(3):
-        monkeypatch.setattr(formatter.time, "time", lambda s=step: s * formatter._ROTATE_SECONDS)
-        seen.append(fmt._wifi_rate(rate, "wifi_rx", tooltip=False)[-1].text)
-    assert seen == ["1153", "MCS5", "NSS2"]
+def test_wifi_rate_panel_shows_whole_mbit_only():
+    assert _wifi_fmt()._wifi_rate(WifiRate(1152.8, 5, 2), "wifi_rx", tooltip=False)[-1].text == "1153"
 
 
-def test_wifi_rate_legacy_shows_the_bitrate_alone(monkeypatch):
-    import formatter
-    monkeypatch.setattr(formatter.time, "time", lambda: formatter._ROTATE_SECONDS)
+def test_wifi_rate_legacy_shows_the_bitrate_alone():
     fmt = _wifi_fmt()
     assert fmt._wifi_rate(WifiRate(54.0), "wifi_tx", tooltip=False)[-1].text == "54"
     assert fmt._wifi_rate(WifiRate(54.0), "wifi_tx", tooltip=True)[1].text == ""
@@ -610,6 +602,14 @@ def test_wifi_ant_reads_its_chain_in_dbm_with_threshold_class():
     assert "good" in fmt._wifi_ant(r, 0, tooltip=True)[-1].css_class
     assert "crit" in fmt._wifi_ant(r, 1, tooltip=False)[-1].css_class
     assert fmt._wifi_ant(Readings(wifi_chains=[-57]), 1, tooltip=True)[-1].text == "--"
+
+
+def test_wifi_ants_joins_every_antenna_colored_on_its_own():
+    fmt = _wifi_fmt()
+    text = fmt._wifi_ants(Readings(wifi_chains=[-55, -65, -75]), tooltip=True)[-1].text
+    assert text == ('<span class="good">-55</span> / <span class="warn">-65</span> / '
+                    '<span class="crit">-75</span> dBm')
+    assert fmt._wifi_ants(Readings(), tooltip=True)[-1].text == "--"
 
 
 def test_wifi_rows_drop_the_glyph_in_a_glyphless_panel():

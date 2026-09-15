@@ -189,7 +189,7 @@ battery_sys          = [10, 30]
 battery_mouse        = [20, 40]
 battery_kbd          = [20, 40]
 wifi_signal          = [30, 60]
-wifi_ant             = [-80, -67]   # dBm per antenna: -67 is fine for streaming, -80 barely holds
+wifi_ant             = [-70, -60]   # dBm per antenna: stronger than -60 green, down to -70 amber, weaker red
 
 # Single-value binary threshold: v > threshold -> green (active), otherwise no color.
 gpu_nvidia_dec_usage = 1

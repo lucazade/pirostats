@@ -136,6 +136,7 @@ _RENDER.update({
     ("wifi_ssid", Form.VALUE): (lambda f, ident, r, t: f._string_row("wifi_ssid", r.wifi_ssid, t)),
     ("wifi_signal", Form.VALUE): (lambda f, ident, r, t: f._wifi_signal(r, t)),
     ("wifi_ssid_signal", Form.VALUE): (lambda f, ident, r, t: f._wifi_ssid_signal(r, t)),
+    ("wifi_ant", Form.VALUE): (lambda f, ident, r, t: [f._wifi_ants(r, t)]),
     ("wifi_ant1", Form.VALUE): (lambda f, ident, r, t: [f._wifi_ant(r, 0, t)]),
     ("wifi_ant2", Form.VALUE): (lambda f, ident, r, t: [f._wifi_ant(r, 1, t)]),
     ("wifi_tx", Form.VALUE): (lambda f, ident, r, t: [f._wifi_rate(r.wifi_tx, "wifi_tx", t)]),

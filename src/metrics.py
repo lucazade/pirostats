@@ -141,8 +141,10 @@ METRICS: dict[str, Metric] = dict([
     _m("wifi_signal",      needs={"net_info", "wifi_link"}, gate=_g_wifi),
     _m("wifi_ssid_signal", needs={"net_info", "wifi_link"}, gate=_g_wifi, surfaces=Surface.TOOLTIP),
     # The live link, per antenna and per direction (rate + MCS/NSS).
-    _m("wifi_ant1",        needs={"net_info", "wifi_link"}, gate=_g_wifi),
-    _m("wifi_ant2",        needs={"net_info", "wifi_link"}, gate=_g_wifi_ant2),
+    # Antennas: one row for all of them in the tooltip, one item each in the panel.
+    _m("wifi_ant",         needs={"net_info", "wifi_link"}, gate=_g_wifi, surfaces=Surface.TOOLTIP),
+    _m("wifi_ant1",        needs={"net_info", "wifi_link"}, gate=_g_wifi, surfaces=Surface.PANEL),
+    _m("wifi_ant2",        needs={"net_info", "wifi_link"}, gate=_g_wifi_ant2, surfaces=Surface.PANEL),
     _m("wifi_tx",          needs={"net_info", "wifi_link"}, gate=_g_wifi),
     _m("wifi_rx",          needs={"net_info", "wifi_link"}, gate=_g_wifi),
 
