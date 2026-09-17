@@ -160,8 +160,8 @@ def _guard_readings(hi: bool) -> Readings:
         net_device="wlan0", ip_address="255.255.255.255" if hi else "1.1.1.1",
         wifi_ssid="Home", wifi_signal=100 if hi else 0,
         wifi_chains=[-100, -100] if hi else [-1, -1],
-        wifi_tx=WifiRate(9999, 13, 16) if hi else WifiRate(1.0, 0, 1),
-        wifi_rx=WifiRate(9999, 13, 16) if hi else WifiRate(1.0),
+        wifi_tx=WifiRate(23059, 13, 16) if hi else WifiRate(1.0, 0, 1),
+        wifi_rx=WifiRate(23059, 13, 16) if hi else WifiRate(1.0),
         disk_read_bps=999_000_000 if hi else 0, disk_write_bps=999_000_000 if hi else 0,
         disk_usage={"/mnt/DataStore": DiskUsage(100 if hi else 0, DISK_TOTAL if hi else 0, DISK_TOTAL)},
         disk_smart={"nvme0": True, "sda": True},
@@ -575,13 +575,14 @@ def _wifi_fmt(glyphs: bool = True) -> PanelFormatter:
     return PanelFormatter(cfg, _bare_hw(net_device="wlan0", has_wifi=True))
 
 
-def test_wifi_rate_tooltip_puts_mcs_nss_in_the_middle_column():
+def test_wifi_rate_tooltip_is_one_right_aligned_value():
     row = _wifi_fmt()._wifi_rate(WifiRate(1152.8, 5, 2), "wifi_tx", tooltip=True)
-    assert [c.text for c in row[1:]] == ["MCS 5 NSS 2", "1153 Mbit/s"]
+    assert [c.text for c in row[1:]] == ["MCS 5 NSS 2 1153 Mbit/s"]
 
 
-def test_wifi_rate_tooltip_two_digit_mcs_keeps_a_gap_before_the_rate():
-    """Regression: at the canonical width a two-digit MCS ran NSS into the rate."""
+def test_wifi_rate_tooltip_keeps_one_space_before_the_rate_whatever_the_width():
+    """Regression: as two columns the gap was the row's leftover — none when the
+    wifi row was the widest, two when another row was wider."""
     cfg = Config()
     cfg.pages.order = []
     cfg.tooltip = Surface(sections=[Section(key="io", title="IO", items=["wifi_tx", "wifi_rx"])])
@@ -589,7 +590,7 @@ def test_wifi_rate_tooltip_two_digit_mcs_keeps_a_gap_before_the_rate():
     r = Readings(wifi_tx=WifiRate(1234.0, 11, 11), wifi_rx=WifiRate(1234.0, 9, 9))
     cfg.display.tooltip_width = fmt.canonical_width(r)
     html = fmt.format_tooltip(r)
-    assert "MCS11 NSS11&nbsp;<" in html and "MCS 9 NSS 9&nbsp;<" in html
+    assert "MCS11 NSS11 1234 Mbit/s" in html and "MCS 9 NSS 9 1234 Mbit/s" in html
 
 
 def test_wifi_rate_panel_shows_whole_mbit_only():
@@ -599,7 +600,7 @@ def test_wifi_rate_panel_shows_whole_mbit_only():
 def test_wifi_rate_legacy_shows_the_bitrate_alone():
     fmt = _wifi_fmt()
     assert fmt._wifi_rate(WifiRate(54.0), "wifi_tx", tooltip=False)[-1].text == "54"
-    assert fmt._wifi_rate(WifiRate(54.0), "wifi_tx", tooltip=True)[1].text == ""
+    assert fmt._wifi_rate(WifiRate(54.0), "wifi_tx", tooltip=True)[1].text == "54 Mbit/s"
 
 
 def test_wifi_rate_missing_link_is_placeholder():

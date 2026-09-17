@@ -93,7 +93,7 @@ def _maxed_readings(r: Readings, hw: HardwareInfo) -> Readings:
     m.cpu_freq = 9999.0
     m.screen_brightness = m.wifi_signal = 100
     m.wifi_chains = [-100] * max(hw.wifi_antennas, len(m.wifi_chains), 2)   # "-100 dBm"
-    m.wifi_tx = m.wifi_rx = WifiRate(9999, 13, 16)       # 320MHz Wi-Fi 7 tops out past 9999, a rare wider row
+    m.wifi_tx = m.wifi_rx = WifiRate(99999, 13, 16)      # 5 digits: past 320MHz Wi-Fi 7's ~23000 Mbit/s
     m.net_up_bps = m.net_down_bps = 999_000_000          # -> "999M"
     m.disk_read_bps = m.disk_write_bps = 999_000_000
     m.ip_address = "255.255.255.255"                     # widest IPv4
@@ -855,11 +855,13 @@ class PanelFormatter:
         ident = Ident(name, "value")
         params = [] if rate is None else [(key, v) for key, v in (("MCS", rate.mcs), ("NSS", rate.nss)) if v is not None]
         if tooltip:
-            val = _val_cell(EMPTY_VALUE if rate is None else f"{rate.mbit:.0f} Mbit/s", ident=ident)
-            # pad_right: at the canonical width the widest MCS/NSS would otherwise
-            # run straight into the rate, with the value's padding all used up.
-            aux = _aux_cell(" ".join(f"{key}{v:>2}" for key, v in params), ident=ident, pad_right=1 if params else 0)
-            return render_three_col_row(self._label_cell(ident, tooltip), aux, val)
+            # MCS/NSS and the rate are ONE right-aligned value, not two columns:
+            # separate columns leave a gap that is whatever the row has left over
+            # (two spaces on a narrow row, none on the widest), while one value
+            # keeps the single space between them wherever the row ends up.
+            text = EMPTY_VALUE if rate is None else " ".join(
+                [f"{key}{v:>2}" for key, v in params] + [f"{rate.mbit:.0f} Mbit/s"])
+            return self._labelled(ident, tooltip, _val_cell(text, ident=ident))
         text = EMPTY_VALUE if rate is None else f"{rate.mbit:.0f}"
         return self._labelled(ident, tooltip, _val_cell(text, ident=ident, min_width=self._WIFI_RATE_PANEL_WIDTH))
 
