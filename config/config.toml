@@ -169,7 +169,7 @@ mem_usage            = [60, 80]
 top_process_cpu      = [70, 90]
 top_process_mem      = [25, 50]
 swap_usage           = [50, 70]
-disk_usage           = [60, 80]
+disk_usage           = [70, 85]
 cpu_temp             = [70, 80]
 hd_temp              = [55, 60]
 gpu_nvidia_usage     = [70, 90]
@@ -206,7 +206,7 @@ load_avg_15          = [0.8, 1.1]
 # Thresholds that trigger the desktop notification
 
 [notify_thresholds]
-disk_usage      = 80
+disk_usage      = 85
 cpu_temp        = 80
 hd_temp         = 60
 gpu_nvidia_temp = 80
