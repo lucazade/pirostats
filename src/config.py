@@ -255,6 +255,8 @@ class ThresholdConfig:
     battery_kbd: list[int] = field(default_factory=lambda: [20, 40])
     # Wifi signal: same inverted logic as batteries (low % = weak signal = alarm).
     wifi_signal: list[int] = field(default_factory=lambda: [30, 60])
+    # Per-antenna signal, in dBm (both antennas share it): same inverted logic.
+    wifi_ant: list[int] = field(default_factory=lambda: [-70, -60])
     # Single-value binary threshold: v > threshold -> green (active), otherwise no color.
     gpu_nvidia_dec_usage: int = 1
     gpu_intel_dec_usage: int = 1

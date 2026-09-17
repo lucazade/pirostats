@@ -53,7 +53,8 @@
        disk_usage disk_smart fan_speed gpu_nvidia_usage gpu_nvidia_mem_usage
        gpu_nvidia_dec_usage gpu_nvidia_temp gpu_nvidia_fan_speed gpu_intel_usage
        gpu_intel_freq gpu_intel_dec_usage net_speed_up net_speed_down
-       disk_io_read disk_io_write net_device_ip wifi_ssid_signal battery_sys
+       disk_io_read disk_io_write net_device_ip wifi_ssid_signal wifi_ant
+       wifi_ant1 wifi_ant2 wifi_tx wifi_rx battery_sys
        battery_mouse battery_kbd screen_brightness system_updates server_check
        uptime load_avg top_process
    e.g. ".tooltip .item-cpu_temp.val", ".panel .item-battery_sys"
@@ -170,6 +171,7 @@
 .crit { color: #ff6565; }
 .active { color: #fcfcfc; }
 .deactive { color: #ff6565; }
+
 
 
 /* ── Bar ───────────────────────────────────────────────────────────────── */

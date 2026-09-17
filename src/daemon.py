@@ -23,7 +23,7 @@ from formatter import PanelFormatter
 from notifier import NotifState, check_and_notify
 from sensors import (
     _gpu_cache_ttl, BAT_CACHE_TTL, DaemonState, FAN_CACHE_TTL, HardwareInfo, HD_TEMP_CACHE_TTL,
-    NET_INFO_TTL, PERIPH_CACHE_TTL, Readings, collect,
+    PERIPH_CACHE_TTL, Readings, collect,
     discover_hardware, needs_periph_rescan, read_top_process_page, rescan_peripherals,
 )
 
@@ -449,10 +449,6 @@ def _print_cache_state(state: DaemonState, hw: HardwareInfo, cfg: Config) -> Non
         gpu_ttl = _gpu_cache_ttl()
         status = "STALE" if age >= gpu_ttl else "fresh"
         print(f"  gpu_nvidia                   age={age:6.2f}s  ttl={gpu_ttl:.0f}s  {status}")
-    if state.net_info_cache.ts != float("-inf"):
-        age = now - state.net_info_cache.ts
-        status = "STALE → refresh on next poll" if age >= NET_INFO_TTL else "fresh"
-        print(f"  net_info                     age={age:6.2f}s  ttl={NET_INFO_TTL:.0f}s  {status}")
     for label, (_, ts) in state.disk_smart_cache.items():
         age = now - ts
         rotational = hw.disk_smart_drives.get(label, ("", "", False))[2]

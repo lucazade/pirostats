@@ -124,6 +124,11 @@ the item set actually changes (a disk mounted, hardware rescanned).
   poll); `gpu_intel_*` via sysfs + `/proc/[pid]/fdinfo` DRM counters; `gpu_amd_*`
   via plain amdgpu sysfs (`gpu_busy_percent`, `mem_info_vram_*` and the card's
   hwmon, ~0.5 ms, read every poll — no library, no fork, hence no TTL cache);
+- the active route, SSID and Wi-Fi link (signal, per-antenna dBm, tx/rx rate)
+  go over **netlink** (`netlink.py`/`nl80211.py`, pure stdlib) — the kernel
+  interface `ip` and `iw` wrap, ~0.07 ms for route + SSID and ~0.2 ms for the
+  station dump, read every poll with no TTL, where forking the two tools cost
+  ~3 ms each;
 - `system_updates`/`server_check` read a plain file written by an external
   checker (a `--user` timer, outside the repo) instead of running `pacman -Qu`
   or `ping` in the loop.

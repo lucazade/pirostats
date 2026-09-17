@@ -42,6 +42,7 @@ from traces import braille_html
 from units import TEMP_SCALE
 from items import FAN_OFF
 from registry import item_gate as _registry_gate, render_item as _registry_render
+from nl80211 import Rate as WifiRate
 from sensors import BatterySys, BatteryPeriph, HardwareInfo, Readings, TOP_PROCESS_PAGE_ROWS, timed_section
 
 # Top-processes page column layout: PID | 2sp | COMMAND | 1sp | %CPU(4) | 1sp |
@@ -91,6 +92,8 @@ def _maxed_readings(r: Readings, hw: HardwareInfo) -> Readings:
     m.gpu_amd_fan_speed = 9999      # RPM, four digits like the chassis fans
     m.cpu_freq = 9999.0
     m.screen_brightness = m.wifi_signal = 100
+    m.wifi_chains = [-100] * max(hw.wifi_antennas, len(m.wifi_chains), 2)   # "-100 dBm"
+    m.wifi_tx = m.wifi_rx = WifiRate(99999, 13, 16)      # 5 digits: past 320MHz Wi-Fi 7's ~23000 Mbit/s
     m.net_up_bps = m.net_down_bps = 999_000_000          # -> "999M"
     m.disk_read_bps = m.disk_write_bps = 999_000_000
     m.ip_address = "255.255.255.255"                     # widest IPv4
@@ -808,6 +811,59 @@ class PanelFormatter:
         cls = css_class_battery(v, thr_low, thr_high)
         return [[label_cell, _val_cell(_fmt_perc(v, tooltip), cls, ident=ident,
                                        min_width=PERCENT_PANEL_WIDTH)]]
+
+    def _wifi_ant(self, r: Readings, chain: int, tooltip: bool) -> Row:
+        """One antenna's signal in dBm: '-57 dBm' in the tooltip, '-57' in the
+        panel. Colored like wifi_signal (weak = alarm), on its own dBm bands."""
+        ident = Ident(f"wifi_ant{chain + 1}", "value")
+        if chain >= len(r.wifi_chains):
+            return self._labelled(ident, tooltip, _val_cell(EMPTY_VALUE, ident=ident))
+        dbm = r.wifi_chains[chain]
+        thr_low, thr_high = self._cfg.thresholds.wifi_ant
+        text = f"{dbm} dBm" if tooltip else str(dbm)
+        return self._labelled(ident, tooltip, _val_cell(
+            text, css_class_battery(dbm, thr_low, thr_high), ident=ident, min_width=PERCENT_PANEL_WIDTH))
+
+    def _wifi_ants(self, r: Readings, tooltip: bool) -> Row:
+        """Every antenna's signal on one tooltip row, '-61 / -53 dBm', each value
+        colored on its own like _wifi_ant."""
+        ident = Ident("wifi_ant", "value")
+        label_cell = self._label_cell(ident, tooltip)
+        if not r.wifi_chains:
+            return [label_cell, _val_cell(EMPTY_VALUE, ident=ident)]
+        thr_low, thr_high = self._cfg.thresholds.wifi_ant
+        parts = [f'<span class="{css_class_battery(dbm, thr_low, thr_high)}">{dbm}</span>' for dbm in r.wifi_chains]
+        return [label_cell, _val_cell(" / ".join(parts) + " dBm", ident=ident)]
+
+    def _labelled(self, ident: Ident, tooltip: bool, val: Cell) -> Row:
+        """A (label, value) row, dropping the label in a panel with `glyphs = false`
+        the way items.label() does for the regular items."""
+        if not tooltip and not self._cfg.panel.glyphs:
+            return [val]
+        return [self._label_cell(ident, tooltip), val]
+
+    # The panel's wifi rate in whole Mbit/s: four digits up to Wi-Fi 7's usual
+    # rates, held there so a 3-digit dip doesn't shift the items after it.
+    _WIFI_RATE_PANEL_WIDTH = 4
+
+    def _wifi_rate(self, rate: Optional[WifiRate], name: str, tooltip: bool) -> Row:
+        """One direction of the link, in whole Mbit/s. Tooltip: 'Wifi TX: MCS 5 NSS 2
+        1153 Mbit/s', the MCS/NSS in the middle column like the battery's rate,
+        each number two columns wide ('MCS11', 'MCS 9') so the TX and RX rows line
+        up whatever the digits. Panel: the rate alone, '1153' — MCS/NSS are for
+        the tooltip. A legacy rate has no MCS/NSS and shows the bitrate alone."""
+        ident = Ident(name, "value")
+        params = [] if rate is None else [(key, v) for key, v in (("MCS", rate.mcs), ("NSS", rate.nss)) if v is not None]
+        if tooltip:
+            # MCS/NSS and the rate are ONE right-aligned value, not two columns:
+            # separate columns leave a gap that is whatever the row has left over
+            # (two spaces on a narrow row, none on the widest), while one value
+            # keeps the single space between them wherever the row ends up.
+            text = EMPTY_VALUE if rate is None else " ".join(
+                [f"{key}{v:>2}" for key, v in params] + [f"{rate.mbit:.0f} Mbit/s"])
+            return self._labelled(ident, tooltip, _val_cell(text, ident=ident))
+        text = EMPTY_VALUE if rate is None else f"{rate.mbit:.0f}"
+        return self._labelled(ident, tooltip, _val_cell(text, ident=ident, min_width=self._WIFI_RATE_PANEL_WIDTH))
 
     def _net_device_ip(self, r: Readings, tooltip: bool) -> list[Row]:
         """net_device + ip_address on one 2-cell row instead of two, e.g.

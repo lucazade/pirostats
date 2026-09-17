@@ -232,13 +232,16 @@ class Readings:
     mem_usage:    Optional[int]   = None
     swap_usage:   Optional[int]   = None
 
-    # Network (device/ip/wifi detected live → handles interface switching)
+    # Network (device/ip/wifi read live over netlink → handles interface switching)
     net_up_bps:   Optional[int]   = None
     net_down_bps: Optional[int]   = None
     net_device:   Optional[str]   = None
     ip_address:   Optional[str]   = None
     wifi_ssid:    Optional[str]   = None
     wifi_signal:  Optional[int]   = None          # %, converted from dBm
+    wifi_chains:  list[int]       = field(default_factory=list)  # dBm per antenna
+    wifi_tx:      Optional[WifiRate] = None       # Mbit/s + MCS + NSS
+    wifi_rx:      Optional[WifiRate] = None
 
     # Disk / I/O (disk_smart is per physical disk, paired with hd_temp)
     disk_read_bps:  Optional[int] = None
