@@ -64,13 +64,22 @@ cd pirostats
 
 install.sh installs system-wide: the code tree under /usr/lib/pirostats, the
 pirostats CLI in /usr/bin, the applet and icon, and the systemd --user service.
-The file steps use sudo; enabling the service runs as you. Your settings live in
-~/.config/pirostats and are never touched — see [Configuration](#configuration).
+Run it as yourself: the file steps use sudo, enabling and starting the service is
+done for you. It also works as root (`sudo ./install.sh`): the service is then set
+up for the user who ran sudo, or, with no graphical session to reach (ssh), the
+commands to run are printed. Your settings live in ~/.config/pirostats and are
+never touched — see [Configuration](#configuration).
+
+`PREFIX=/usr/local ./install.sh` installs somewhere else (default `/usr`, the same
+paths as the AUR package); `DESTDIR` stages the files in a folder without touching
+the system. `/usr/share/pirostats/` keeps a copy of `uninstall.sh` and the commit
+it was installed from.
 
 Then add the widget: **right-click a panel → Add Widgets → search "PiroStats"**.
 
-Re-run install.sh to upgrade (it restarts plasmashell to reload the applet).
-Remove everything with uninstall.sh.
+install.sh restarts plasmashell (a couple of seconds, the panel reloads) so the widget shows up in the list and an upgraded applet is reloaded. Re-run it to upgrade.
+Remove everything with uninstall.sh (or `/usr/share/pirostats/uninstall.sh`, which
+needs no clone).
 
 ## Configuration
 

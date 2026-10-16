@@ -449,7 +449,7 @@ desktops, dark on light ones) — nothing to switch there.
 ## 6. Systemd user service
 
 ```ini
-# service/pirostats.service → ~/.config/systemd/user/pirostats.service
+# service/pirostats.service → $PREFIX/lib/systemd/user/pirostats.service (install.sh; ExecStart follows PREFIX)
 [Unit]
 Description=PiroStats stats daemon
 Documentation=https://github.com/lucazade/pirostats
@@ -466,7 +466,7 @@ RestartSec=3
 WantedBy=graphical-session.target
 ```
 
-Start: `systemctl --user enable --now pirostats`
+Start: `systemctl --user enable --now pirostats` (install.sh does it for the user who ran it)
 
 ---
 
