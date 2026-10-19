@@ -250,11 +250,13 @@ def test_root_without_a_session_prints_the_commands(sandbox):
 
 
 @needs_bash
+@pytest.mark.skipif(UNSHARE is None, reason="unshare not found")
 def test_other_prefix_points_the_applet_commands_at_it(sandbox):
     """With a PREFIX other than /usr the applet is installed from a copy whose three
     commands name that PREFIX; the repo file itself is not touched."""
-    if UNSHARE is None:
-        pytest.skip("unshare not found")
+    probe = subprocess.run([UNSHARE, "-Ur", "id", "-u"], capture_output=True, text=True)
+    if probe.stdout.strip() != "0":
+        pytest.skip("user namespaces are not available")
     kpt = Path(sandbox["env"]["PATH"].split(":")[0]) / "kpackagetool6"
     seen = sandbox["tmp"] / "main.xml.seen"
     kpt.write_text('#!/bin/sh\ncase "$*" in *--show*) exit 1;; esac\n'
