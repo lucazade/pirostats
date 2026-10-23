@@ -85,6 +85,18 @@
 		<entry name="desktopOutlineColor" type="string">
 			<default>#000000</default>
 		</entry>
+		<!-- Desktop-only: keep the width the widget is given and have the daemon
+		     render the pages to it (geom form factor 3), instead of sizing the
+		     widget to its text and leaving the grid at a fixed column count. -->
+		<entry name="desktopFit" type="bool">
+			<default>false</default>
+		</entry>
+		<!-- Width for the widget in fit mode, px; 0 keeps the content width. Plasma
+		     gives a desktop widget no resize handle of its own, so this is the
+		     handle: the width the daemon renders the pages to. -->
+		<entry name="desktopWidth" type="int">
+			<default>0</default>
+		</entry>
 		<!-- Absolute path to the system CLI: /usr/bin is always on the panel's
 		     PATH, and being explicit keeps it independent of the shell env. -->
 		<entry name="clickCommand" type="string">

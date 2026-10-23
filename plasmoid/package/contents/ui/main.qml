@@ -647,14 +647,32 @@ PlasmoidItem {
 					// costs no extra process.
 					executable.exec(
 						"sh -c 'mkdir -p " + config.runtimeDir + "/state && "
-						+ "printf \"%s %s %s %s\\n\" " + output.width + " "
+						// 5th field: our own form-factor code (2 = Planar desktop
+						// widget, else the panel edge). The daemon only uses it for
+						// [display].desktop_fit; old 4-field readers ignore it.
+						+ "printf \"%s %s %s %s %s\\n\" " + output.width + " "
 						+ (glyphMetrics.advanceWidth / 10) + " "
 						+ (panelItem.isVertical ? 1 : 0) + " "
-						+ (tooltipGlyphMetrics.advanceWidth / 10)
+						+ (tooltipGlyphMetrics.advanceWidth / 10) + " "
+						+ (plasmoid.formFactor === PlasmaCore.Types.Planar ? 2 : (panelItem.isVertical ? 1 : 0))
 						+ " > " + config.geomFile + "'")
 				}
 			}
-			onWidthChanged: publishGeometry()
+			// A drag is a resize too: remember where it ended, so the width survives
+		// restarts and the layout stops re-deriving it from the text.
+		Timer {
+			id: widthSave
+			interval: 800
+			onTriggered: {
+				if (pinItem.fitWidth && pinItem.width > 0)
+					plasmoid.configuration.desktopWidth = Math.round(pinItem.width)
+			}
+		}
+		onWidthChanged: {
+			publishGeometry()
+			if (fitWidth)
+				widthSave.restart()
+		}
 			Component.onCompleted: publishGeometry()
 
 			color: config.textColor
@@ -707,12 +725,110 @@ PlasmoidItem {
 		// content-fit: paging is done on the PANEL (a stable surface), never on
 		// the popup, so the popup never resizes out from under the cursor and can
 		// simply follow the content of whatever page the panel selected.
-		Layout.minimumWidth: pinMeasure.contentWidth + pinText.leftPadding + pinText.rightPadding
-		Layout.maximumWidth: Layout.minimumWidth
-		Layout.preferredWidth: Layout.minimumWidth
-		Layout.minimumHeight: pinText.contentHeight + pinText.topPadding + pinText.bottomPadding
-		Layout.maximumHeight: Layout.minimumHeight
-		Layout.preferredHeight: Layout.minimumHeight
+		readonly property int contentWidth: pinMeasure.contentWidth + pinText.leftPadding + pinText.rightPadding
+
+		// Desktop fit mode ("Fill the widget width" in the Appearance page): keep
+		// the width Plasma gives the widget instead of snapping back to the text,
+		// and publish form factor 3 so the daemon renders the pages to it (see
+		// config._apply_desktop_width). The popup from a panel never fits: it must
+		// keep sizing itself to the tooltip content.
+		readonly property bool fitWidth: onDesktop && plasmoid.configuration.desktopFit
+
+		// Plasma hands a desktop widget no resize handle, and a Layout-driven item
+		// ignores the frame it is given, so the width is set here: "Width, px" in
+		// the Appearance page (0 = fit the content as before).
+		readonly property int wantedWidth: plasmoid.configuration.desktopWidth > 0
+			? plasmoid.configuration.desktopWidth : contentWidth
+
+		Layout.minimumWidth: fitWidth ? 1 : contentWidth
+		Layout.maximumWidth: fitWidth ? 100000 : contentWidth
+		Layout.preferredWidth: fitWidth ? wantedWidth : contentWidth
+		Layout.minimumHeight: fitWidth ? 1 : pinText.contentHeight + pinText.topPadding + pinText.bottomPadding
+		Layout.maximumHeight: fitWidth ? 100000 : pinText.contentHeight + pinText.topPadding + pinText.bottomPadding
+		Layout.preferredHeight: fitWidth ? Math.max(pinText.height, 1)
+		                              : pinText.contentHeight + pinText.topPadding + pinText.bottomPadding
+
+		// The daemon's fit must follow the widget's real width, not the other way
+		// round; these metrics give it the glyph advance at both font sizes.
+		TextMetrics {
+			id: pinGlyphMetrics
+			font: pinText.font
+			text: "██████████"
+			onAdvanceWidthChanged: pinItem.publishGeometry()
+		}
+		TextMetrics {
+			id: pinTooltipGlyphMetrics
+			font.family: pinText.font.family
+			font.pointSize: pinText.font.pointSize
+			text: "██████████"
+			onAdvanceWidthChanged: pinItem.publishGeometry()
+		}
+		// Same contract as the panel's publisher, but for the desktop: usable is the
+		// text area inside the padding, and the form-factor code says whether the
+		// widget holds its width (3) or still sizes to content (2).
+		property string lastGeom: ""
+		property int geomNonce: 0
+		function publishGeometry() {
+			// Only panels' popups must stay out: on a Planar widget the full
+			// representation IS the widget, and plasma keeps `expanded` true for it
+			// after the first interaction — guarding on that froze the geometry.
+			if (!onDesktop)
+				return
+			var usable = pinText.width - pinText.leftPadding - pinText.rightPadding
+			if (usable <= 0 || pinGlyphMetrics.advanceWidth <= 0)
+				return
+			var line = usable + " " + (pinGlyphMetrics.advanceWidth / 10) + " 0 "
+				+ (pinTooltipGlyphMetrics.advanceWidth / 10) + " "
+				+ (pinItem.fitWidth ? 3 : 2)
+			if (line === lastGeom)
+				return
+			lastGeom = line
+			// Unique comment per call: the executable DataSource keys sources by
+			// command string and silently drops exact repeats, which is how a
+			// re-publish of the same width could vanish.
+			executable.exec(
+				"sh -c 'mkdir -p " + config.runtimeDir + "/state && "
+				+ "printf \"%s %s %s %s %s\\n\" " + line
+				+ " > " + config.geomFile + "' # " + (++geomNonce))
+		}
+		// A drag is a resize too: remember where it ended, so the width survives
+		// restarts and the layout stops re-deriving it from the text.
+		Timer {
+			id: widthSave
+			interval: 800
+			onTriggered: {
+				if (pinItem.fitWidth && pinItem.width > 0)
+					plasmoid.configuration.desktopWidth = Math.round(pinItem.width)
+			}
+		}
+		onWidthChanged: {
+			publishGeometry()
+			if (fitWidth)
+				widthSave.restart()
+		}
+		onFitWidthChanged: publishGeometry()
+		Component.onCompleted: publishGeometry()
+		// The config object doesn't always notify a property change for a key that
+		// was added after the applet was created, so re-publish on any config edit
+		// and once a second while on the desktop (publishGeometry is a no-op when
+		// nothing changed).
+		Connections {
+			target: plasmoid.configuration
+			function onDesktopFitChanged() { pinItem.publishGeometry() }
+			function onFontSizeChanged() { pinItem.publishGeometry() }
+			function onTooltipFontSizeChanged() { pinItem.publishGeometry() }
+			function onFontFamilyChanged() { pinItem.publishGeometry() }
+			function onDesktopWidthChanged() { pinItem.publishGeometry() }
+		}
+		// Safety net: the width can change without a signal reaching this item (a
+		// container relayout, a font switch, the popup closing). publishGeometry is
+		// a no-op when the line is unchanged, so a cheap poll costs nothing.
+		Timer {
+			interval: 1000
+			running: pinItem.onDesktop
+			repeat: true
+			onTriggered: pinItem.publishGeometry()
+		}
 
 		// This same full representation serves two very different contexts: inline
 		// on the desktop (the widget itself) and the pinned popup from a panel. The

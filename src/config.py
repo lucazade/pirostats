@@ -81,6 +81,17 @@ def _from_dict(cls, data: dict):
 # minimum. See DisplayConfig.tooltip_width / config.apply_canonical_width.
 TOOLTIP_WIDTH_FLOOR = 30
 
+# Form factor codes in the geom's optional 5th field (the plasmoid's own code, not
+# PlasmaCore's enum): 0/1 panel horizontal/vertical, 2 = Planar desktop widget
+# sizing itself to its content (upstream), 3 = the same widget in fit mode — it
+# keeps whatever width it is given and expects the pages rendered to that width.
+FORM_FACTOR_DESKTOP = 2
+FORM_FACTOR_DESKTOP_FIT = 3
+# Upper bound for the desktop fit, in monospace columns: a stretched widget on a
+# wide screen must not turn every row into a ruler with the value glued to the far
+# edge. 200 columns ≈ 1600 px at an 8 px font.
+DESKTOP_WIDTH_MAX = 200
+
 
 @dataclass
 class DisplayConfig:
@@ -545,6 +556,11 @@ class PanelGeometry:
     # (published alongside the panel's), orientation-independent. Sizes the graphs
     # page PNGs to the tooltip's real text width. None on old 3-field geoms.
     tooltip_adv: float | None = None
+    # The plasmoid's form factor as published in the geom's optional 5th field:
+    # 0/1 = panel (horizontal/vertical), 2 = Planar (desktop widget), None = old
+    # 4-field geom. Only the desktop needs it: a desktop surface has no panel edge,
+    # so its usable_px must not be discarded by the orientation check below.
+    form_factor: int | None = None
 
 
 def _parse_kde_ini(text: str) -> dict[str, dict[str, str]]:
@@ -606,6 +622,7 @@ def _parse_geom(text: str) -> PanelGeometry | None:
     try:
         usable, adv = float(parts[0]), float(parts[1])
         tip = float(parts[3]) if len(parts) > 3 else None
+        ff = int(parts[4]) if len(parts) > 4 else None
     except ValueError:
         return None
     if usable <= 0 or adv <= 0:
@@ -613,7 +630,7 @@ def _parse_geom(text: str) -> PanelGeometry | None:
     if tip is not None and tip <= 0:
         tip = None
     return PanelGeometry(vertical=parts[2] == "1", usable_px=usable, glyph_adv=adv,
-                         tooltip_adv=tip)
+                         tooltip_adv=tip, form_factor=ff)
 
 
 def _read_geom_file() -> PanelGeometry | None:
@@ -669,6 +686,10 @@ def detect_panel_geometry() -> PanelGeometry:
     # The tooltip advance is orientation-independent, so keep it even when a stale
     # geom still describes the old edge (whose panel usable_px/glyph_adv we drop).
     tip = geo.tooltip_adv if geo is not None else None
+    # A desktop (Planar) widget has no panel edge, so its own orientation flag is
+    # meaningless and its usable width must survive: hand its geometry back as-is.
+    if geo is not None and geo.form_factor in (FORM_FACTOR_DESKTOP, FORM_FACTOR_DESKTOP_FIT):
+        return geo
     if geo is not None and geo.vertical == vertical:
         return PanelGeometry(vertical=vertical, usable_px=geo.usable_px,
                              glyph_adv=geo.glyph_adv, tooltip_adv=tip)
@@ -743,6 +764,30 @@ def _auto_fit_panel(cfg: "Config", geo: PanelGeometry) -> None:
         cfg.column_panel.height = max(1, round(main_px * _COLUMN_DIGIT_RATIO))
 
 
+def _apply_desktop_width(cfg: "Config", geo: PanelGeometry) -> None:
+    """Render the desktop widget to the width it actually has (fit mode).
+
+    Upstream sizes a desktop widget TO its content (itemWidth = contentWidth) and
+    sizes the content from the canonical (content-derived) width, so dragging the
+    widget bigger only grows the frame: the monospace grid inside keeps its baked
+    column count. A plasmoid in fit mode instead keeps the width it is given and
+    publishes form-factor 3; then that width becomes the render width, in whole
+    columns (`usable / tooltip_advance`, floored so the value column never wraps).
+    A no-op for every other geom — panels keep the canonical width, and a desktop
+    widget in upstream mode publishes 2 and is left alone.
+
+    Called from apply_canonical_width so every caller gets it, and AFTER the
+    canonical is written: in fit mode it replaces that value on the desktop only."""
+    if geo.form_factor != FORM_FACTOR_DESKTOP_FIT:
+        return
+    if not geo.usable_px or not geo.tooltip_adv:
+        return
+    cols = int(geo.usable_px / geo.tooltip_adv)
+    if cols <= 0:
+        return
+    cfg.display.tooltip_width = max(TOOLTIP_WIDTH_FLOOR, min(cols, DESKTOP_WIDTH_MAX))
+
+
 def apply_canonical_width(cfg: "Config", canonical: int) -> None:
     """Resolve the tooltip width the pages render to = max(TOOLTIP_WIDTH_FLOOR,
     canonical), then re-derive the graphs PNG width from it. `canonical` comes from
@@ -753,11 +798,13 @@ def apply_canonical_width(cfg: "Config", canonical: int) -> None:
     tooltip_width is written fresh from the FLOOR each call (not read back), so a
     shrinking canonical — a disk unmounted, the interface shortened — lowers the
     width again instead of the field ratcheting up against its own previous max."""
-    if canonical <= 0:
-        return
     d = cfg.display
-    d.tooltip_width = max(TOOLTIP_WIDTH_FLOOR, canonical)
     geo = detect_panel_geometry()
+    if canonical > 0:
+        d.tooltip_width = max(TOOLTIP_WIDTH_FLOOR, canonical)
+    # Desktop in fit mode only: replaces the canonical with the width the widget
+    # really has. No-op for panels and for a desktop widget in upstream mode.
+    _apply_desktop_width(cfg, geo)
     if geo.tooltip_adv:
         cfg.pages.graph_width = round(d.tooltip_width * geo.tooltip_adv)
 
