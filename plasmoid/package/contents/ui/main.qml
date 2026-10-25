@@ -128,6 +128,8 @@ PlasmoidItem {
 		readonly property string command: "cat " + runtimeDir + "/panel.html"
 		readonly property string tooltipCommand: "cat " + runtimeDir + "/tooltip.html"
 		readonly property string geomFile: runtimeDir + "/state/geom"
+		// Written by the desktop widget only (see pinItem.publishGeometry).
+		readonly property string desktopGeomFile: runtimeDir + "/state/geom-desktop"
 		readonly property bool clickEnabled: !!plasmoid.configuration.clickCommand
 		readonly property bool mousewheelEnabled: (plasmoid.configuration.mousewheelUpCommand || plasmoid.configuration.mousewheelDownCommand)
 		readonly property color textColor: plasmoid.configuration.textColor || Kirigami.Theme.textColor
@@ -729,6 +731,31 @@ PlasmoidItem {
 		// paging) key off this — the popup keeps Plasma's dialog background and the
 		// panel drives its paging.
 		readonly property bool onDesktop: plasmoid.formFactor === PlasmaCore.Types.Planar
+
+		// A widget on the desktop tells the daemon the real advance of one glyph at its
+		// own font, so the graphs page is sized to its text and never stretches the
+		// widget (which keeps whatever size it has grown to). The panel and its pinned
+		// popup do not publish here: the panel does it from its own representation.
+		TextMetrics {
+			id: pinGlyphMetrics
+			font: pinText.font
+			text: "██████████"   // 10 mono blocks, as the panel's
+			onAdvanceWidthChanged: pinItem.publishGeometry()
+		}
+		function publishGeometry() {
+			if (!onDesktop || pinGlyphMetrics.advanceWidth <= 0)
+				return
+			// mkdir -p: this can run before the daemon has ever created the state dir.
+			widget.execOnce("sh -c 'mkdir -p " + config.runtimeDir + "/state && "
+				+ "printf \"%s\\n\" " + (pinGlyphMetrics.advanceWidth / 10)
+				+ " > " + config.desktopGeomFile + "'")
+		}
+		Component.onCompleted: publishGeometry()
+		// Best effort: if this does not run, the file goes away with the session.
+		Component.onDestruction: {
+			if (onDesktop)
+				executable.exec("rm -f " + config.desktopGeomFile)
+		}
 
 		MouseArea {
 			anchors.fill: parent

@@ -16,7 +16,7 @@ from typing import Callable
 import pages
 from pagestate import (PAGE_FILE, NPAGES_FILE, read_page as _read_page,
                        set_page as _set_page, step_page)
-from runtime import GEOM_FILE, PANEL_FILE, TOOLTIP_FILE, ensure_dirs
+from runtime import DESKTOP_GEOM_FILE, GEOM_FILE, PANEL_FILE, TOOLTIP_FILE, ensure_dirs
 from config import (Config, apply_canonical_width, cache_live_geom, default_config_path,
                     load_config, machine_source_paths, resolve_style)
 from formatter import PanelFormatter
@@ -42,7 +42,8 @@ PLASMA_CFG   = Path.home() / ".config/plasma-org.kde.plasma.desktop-appletsrc"
 KDEGLOBALS   = Path.home() / ".config/kdeglobals"
 # GEOM_FILE carries the plasmoid's real text-area width and glyph advance; watched by
 # mtime so the vertical panel re-fits when the panel is resized or the widget font
-# changes (both move those numbers).
+# changes (both move those numbers). DESKTOP_GEOM_FILE (the desktop widget's own
+# glyph advance, which sizes the graphs page) is watched the same way.
 # PAGE_FILE / NPAGES_FILE (the tooltip page counter and its wrap bound) and the
 # read/set/step helpers live in the stdlib-only `pagestate` module, so the wheel
 # command stays cheap and its read-modify-write is flock-serialized. Imported
@@ -203,6 +204,13 @@ def _mtime(path: Path) -> float:
         return path.stat().st_mtime
     except OSError:
         return 0.0
+
+
+def _geom_stamp() -> tuple[float, float]:
+    """Change stamp of the geometry the widgets publish: the panel's GEOM_FILE and the
+    desktop widget's DESKTOP_GEOM_FILE. A tuple, so either one changing (or appearing,
+    or going away) differs from the last stamp."""
+    return _mtime(GEOM_FILE), _mtime(DESKTOP_GEOM_FILE)
 
 
 def _write_atomic(path: Path, content: str) -> None:
@@ -653,7 +661,7 @@ def run_daemon(cfg_path: Path | None) -> None:
     cfg_mtime   = _mtime(watch_path)
     machine_mtimes = [_mtime(p) for p in machine_paths]
     plasma_mtime = _mtime(PLASMA_CFG)
-    geom_mtime = _mtime(GEOM_FILE)
+    geom_mtime = _geom_stamp()
     kdeglobals_mtime = _mtime(KDEGLOBALS)
 
     light         = _plasma_is_light()
@@ -708,7 +716,7 @@ def run_daemon(cfg_path: Path | None) -> None:
                 cfg, hw = new_cfg, new_hw
                 active = _publish_pages(cfg)   # pages.order may have changed
                 plasma_mtime = _mtime(PLASMA_CFG)
-                geom_mtime = _mtime(GEOM_FILE)
+                geom_mtime = _geom_stamp()
             except Exception as e:
                 print(f"[reload] config reload failed, keeping previous: {e}", flush=True)
 
@@ -725,7 +733,7 @@ def run_daemon(cfg_path: Path | None) -> None:
         # load_config too.
         # Guarded like the config reload above: a transient read must not crash.
         new_plasma_mtime = _mtime(PLASMA_CFG)
-        new_geom_mtime = _mtime(GEOM_FILE)
+        new_geom_mtime = _geom_stamp()
         if new_plasma_mtime != plasma_mtime or new_geom_mtime != geom_mtime:
             plasma_mtime = new_plasma_mtime
             geom_mtime = new_geom_mtime

@@ -61,3 +61,8 @@ _.gpu_amd_freq
 # by position.
 signum
 frame
+
+# ── tests/conftest.py ─────────────────────────────────────────────────────────
+# An autouse pytest fixture: pytest finds it by its decorator and runs it for
+# every test, so nothing in the code names it.
+_no_desktop_geom

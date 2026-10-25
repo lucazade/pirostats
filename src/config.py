@@ -9,13 +9,14 @@ board/product name.
 """
 from __future__ import annotations
 
+import math
 import os
 import re
 import tomllib
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 
-from runtime import GEOM_FILE
+from runtime import DESKTOP_GEOM_FILE, GEOM_FILE
 
 
 # ── Asset roots ───────────────────────────────────────────────────────────────
@@ -635,6 +636,18 @@ def _read_geom_file() -> PanelGeometry | None:
         return None
 
 
+def _read_desktop_tooltip_adv() -> float | None:
+    """The tooltip glyph advance the desktop widget published in DESKTOP_GEOM_FILE
+    (px), or None when it is absent or unusable (a half-written, zero or non-finite
+    value). There is deliberately no persisted copy: it exists only while the
+    desktop widget does."""
+    try:
+        adv = float(DESKTOP_GEOM_FILE.read_text().split()[0])
+    except (OSError, ValueError, IndexError):
+        return None
+    return adv if math.isfinite(adv) and adv > 0 else None
+
+
 def cache_live_geom() -> None:
     """Persist the current live GEOM_FILE to GEOM_CACHE when it's valid, so the
     next cold start (tmpfs wiped) can seed its first paint from it. Best-effort:
@@ -757,9 +770,12 @@ def apply_canonical_width(cfg: "Config", canonical: int) -> None:
         return
     d = cfg.display
     d.tooltip_width = max(TOOLTIP_WIDTH_FLOOR, canonical)
-    geo = detect_panel_geometry()
-    if geo.tooltip_adv:
-        cfg.pages.graph_width = round(d.tooltip_width * geo.tooltip_adv)
+    # The desktop widget's own advance wins over the panel's: a desktop widget keeps
+    # whatever size it has grown to, so a graphs page wider than its text would
+    # stretch it for good, while a panel tooltip just follows its content.
+    adv = _read_desktop_tooltip_adv() or detect_panel_geometry().tooltip_adv
+    if adv:
+        cfg.pages.graph_width = round(d.tooltip_width * adv)
 
 
 def machines_path_for(config_path: Path) -> Path:

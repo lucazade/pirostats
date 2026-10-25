@@ -10,6 +10,7 @@ must churn only when there is something new to show:
         tooltip.html
         state/            <- not watched: page counter, geometry, lock
             geom
+            geom-desktop
             page
             npages
             page.lock
@@ -53,6 +54,12 @@ TOOLTIP_FILE = RUNTIME_DIR / "tooltip.html"
 
 # Written by the applet: "<usable_px> <glyph_adv_px> <vertical 0|1> <tooltip_adv_px>".
 GEOM_FILE = STATE_DIR / "geom"
+# Written by the applet only when it sits on the desktop (never from the panel or the
+# pinned popup): "<tooltip_adv_px>", the real advance of one monospace glyph at the
+# desktop widget's own font. A separate file because GEOM_FILE also carries the
+# panel's edge and usable width, which the desktop must not overwrite. Removed by the
+# applet when the widget goes away; tmpfs clears it at logout. Never cached.
+DESKTOP_GEOM_FILE = STATE_DIR / "geom-desktop"
 # Tooltip page counter, its wrap bound, and the flock that serializes concurrent
 # wheel processes. See pagestate.
 PAGE_FILE = STATE_DIR / "page"
