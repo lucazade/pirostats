@@ -121,20 +121,9 @@
    font-size: 1.35em;
    color: #3daee9;
    text-align: left;
+   text-decoration: underline;
    letter-spacing: 1px;
  }
-
-/* Underline rule emitted right after each title: a width="100%" div (full
-   width, pinned by the HTML attribute) painted as a solid bar via
-   background-color; font-size is the &nbsp;'s line-box height, i.e. the bar
-   thickness (floors at ~1px → ~2px painted; 0px explodes to default). A
-   lighter colour reads finer at the same height — an <hr> hairline is thinner
-   but Qt fixes its margins far too airy, so we lighten the bar instead.
-   margin-bottom is the gap between the rule and the section's first row. */
-.tooltip .title-rule { background-color: #494e54;
-   font-size: 1px;
-   margin-top: 3px;
-   margin-bottom: 4px; }
 
 .tooltip .label { color: #aaaaaa; }
 /* .tooltip .val { font-weight: bold; } */

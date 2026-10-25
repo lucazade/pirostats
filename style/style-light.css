@@ -38,13 +38,9 @@
    font-size: 1.35em;
    color: #1d7bb8;
    text-align: left;
+   text-decoration: underline;
    letter-spacing: 1px;
  }
-
-.tooltip .title-rule { background-color: #c4c8cc;
-   font-size: 1px;
-   margin-top: 3px;
-   margin-bottom: 4px; }
 
 .tooltip .label { color: #7a7f83; }
 /* .tooltip .val { font-weight: bold; } */

@@ -67,15 +67,11 @@ def _span(cell: Cell) -> str:
     return f'<span class="{cell.css_class}">{inner}</span>' if cell.css_class else inner
 
 
-def _is_title_rule(cell: Cell) -> bool:
-    return bool(cell.css_class) and cell.css_class.split()[0] == "title-rule"
-
-
 # ── Row layout plan (pass 1) ─────────────────────────────────────────────────
 
 @dataclass
 class _Plan:
-    kind: str          # "left" | "rightval" | "centermid" | "twopair" | "titlerule"
+    kind: str          # "left" | "rightval" | "centermid" | "twopair"
     natural_width: int
     html: str = ""     # for "left": the full pre-rendered content
     left_html: str = ""    # for "rightval"/"centermid": label (left) column(s)
@@ -137,11 +133,7 @@ def _plan_row(row: Row, widths: list[int], val_col_width: int = 0) -> _Plan:
 
     if len(row) == 1:
         cell = row[0]
-        if _is_title_rule(cell):
-            # natural_width 0: the rule must not drive global_width — it follows
-            # the content width, the content never follows it. _emit fills it.
-            return _Plan(kind="titlerule", natural_width=0)
-        # A lone non-rule cell (e.g. a section title) renders left-aligned —
+        # A lone cell (e.g. a section title) renders left-aligned —
         # alignment lives here, not in CSS (text-align has no effect on the
         # already-laid-out span).
         return _Plan(kind="left", natural_width=_cell_width(cell), html=_span(cell))
@@ -191,19 +183,6 @@ def _emit(plan: _Plan, global_width: int) -> str:
         after  = global_width - plan.val_width - plan.left_width - left - plan.mid_width
         return (f"<div>{plan.left_html}{_pad(left)}{plan.mid_html}"
                 f"{_pad(after)}{plan.val_html}</div>")
-    if plan.kind == "titlerule":
-        # Full-width underline as a coloured bar, NOT a run of '─': the HTML
-        # width="100%" attribute pins it to the tooltip's full width (same trick
-        # as _separator_rule_html — CSS width is ignored by Qt's RichText), the
-        # &nbsp; gives it a line box whose height is the font-size, and the
-        # colour comes from background-color on .tooltip .title-rule in
-        # style-dark.css. A '─' run instead scaled with font-size on BOTH axes, so a
-        # thin line fell short of full width; this decouples height from width.
-        # (An <hr> renders a genuinely thinner ~1px hairline, but Qt fixes its
-        # vertical margins — far too airy here and untunable from any side, even
-        # negative margins on neighbours — so the bar stays; lighten its colour
-        # in style-dark.css to read finer rather than chasing a thinner geometry.)
-        return '<div width="100%" class="title-rule">&nbsp;</div>'
     return f"<div>{plan.html}</div>"
 
 

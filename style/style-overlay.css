@@ -29,11 +29,8 @@
 .panel .separator-rule-small { background-color: #aa2266; }
 .panel .separator-rule-big { background-color: #aa2266; }
 
-/* Section title and its underline rule (tooltip only): two close teal shades
-   so the title's text box and the thin rule below it are each visible and
-   told apart. The rule's bg here overrides its real colour from the base sheet. */
+/* Section title (tooltip only). */
 .tooltip .title { background-color: #006666; }
-.tooltip .title-rule { background-color: #00a0a0; }
 
 .tooltip .label { background-color: #224488; }
 .tooltip .val { background-color: #884422; }

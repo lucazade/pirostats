@@ -531,14 +531,10 @@ class PanelFormatter:
             if tooltip and any_section_rendered:
                 entries.append(Separator(size="big"))
             if tooltip and section.title:
+                # The underline is the title's own text-decoration (.tooltip .title
+                # in the style sheet): it follows the text, never the width of the
+                # frame it is drawn in.
                 entries.append([Cell(text=section.title, css_class="title")])
-                # Underline rule under the title: a full-width coloured bar, its
-                # own 'title-rule'-role single-cell row (its own block via the
-                # shape-change rule in group_rows_into_blocks). The text is left
-                # empty here — mono_render emits it as a width="100%" div whose
-                # background-color/height come from .tooltip .title-rule in
-                # style-dark.css (see _emit there).
-                entries.append([Cell(text="", css_class="title-rule")])
             entries.extend(section_rows)
             any_section_rendered = True
 

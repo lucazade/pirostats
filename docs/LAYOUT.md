@@ -1,7 +1,7 @@
 # Layout types (row layouts)
 
 The monospace serializer ([src/mono_render.py](../src/mono_render.py)) doesn't
-have a layout for every cell count: it reduces everything to **five layout
+have a layout for every cell count: it reduces everything to **four layout
 plans** (the `kind` field in `_plan_row`), and every row maps onto one of them
 based on its *shape*, not its cell count.
 
@@ -11,7 +11,7 @@ based on its *shape*, not its cell count.
    aligned. Last one right-aligned → `rightval`; but if it's a 3-cell row with
    the middle cell marked `center` → `centermid` (the middle one centers, see
    below). Four cells with the values in position 1 and 3 right-aligned →
-   `twopair`. A single cell → `center` if a title, `left` otherwise.
+   `twopair`. A single cell → `left` (a section title included).
 2. **Automatic, flush columns.** Every group of identically-shaped rows
    (a block) measures its own widths (the max per column) and the columns sit
    flush: if you want a gap, put it in the text (e.g. the label's `:`).
@@ -25,13 +25,13 @@ between blocks (the small or big separator `<div>`).
 
 ## Schema for each type
 
-### 1 cell — `center` (titles)
+### 1 cell — `left` (section titles, standalone spark / bars)
 
-```
-│            ━━━ Cpu & Mem ━━━            │
-└─ padding ─┘                 └─ padding ─┘
-   text centered over the total width
-```
+A section title is a single left-aligned cell; its underline is the title's own
+`text-decoration` (`.tooltip .title` in the style sheets), so it follows the text
+and never the width of the frame the text is drawn in. (A full-width bar under
+the title was tried and dropped for that reason: it filled the frame, not the
+text, so a widget wider than its text showed rules longer than the columns.)
 
 ### 1 cell — `left` (standalone spark / bars)
 

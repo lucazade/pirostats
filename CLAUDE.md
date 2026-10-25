@@ -94,7 +94,7 @@ A **scalar beside a surface's `order` is an option of that surface**, not a sect
 
 Read the relevant one before working in the matching area — they carry the rationale and measurements that the code comments don't:
 
-- **`docs/LAYOUT.md`** — before touching `mono_render.py`: the serializer reduces every row to **five layout plans** (`kind` in `_plan_row`); this explains which and why.
+- **`docs/LAYOUT.md`** — before touching `mono_render.py`: the serializer reduces every row to **four layout plans** (`kind` in `_plan_row`); this explains which and why.
 - **`docs/ITEMS.md`** — plain-language catalogue of every item and the row it renders; the human companion to the `metric:form` token naming.
 - **`docs/DESIGN.md`** — the "why Python, why this shape" rationale (the original bash script's power draw, design goals).
 - **`docs/PERFORMANCE.md`** — timing methodology, TTL-cache design, the hot-loop cost table, the table-free rationale. Consult before changing anything in the poll loop or a sensor's caching.

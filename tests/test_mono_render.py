@@ -115,16 +115,15 @@ def test_title_is_left_aligned():
     assert '<span class="gap">&nbsp;' not in title_div
 
 
-def test_title_rule_is_full_width_bar():
+def test_title_is_one_row_with_no_rule_element():
     blocks = group_rows_into_blocks([
         [Cell(text="Title", css_class="title")],
-        [Cell(text="", css_class="title-rule")],
         [_label("LongerLabel:"), _val("100%")],
     ])
     html = render_blocks_monospace(blocks)
-    # full-width bar via the HTML width="100%" attribute (CSS width is ignored
-    # by Qt's RichText), height/colour from .title-rule in style-dark.css
-    assert '<div width="100%" class="title-rule">&nbsp;</div>' in html
-    # the empty rule cell must not widen the layout: the data row "LongerLabel:"
-    # + "100%" stays the widest, so the value still right-aligns to its edge
+    # the underline is the title's text-decoration (style sheet), so there is no
+    # separate full-width element that could follow the frame instead of the text
+    assert "title-rule" not in html
+    assert html.count("<div") == 2
+    # the data row stays the widest: the value right-aligns to its edge
     assert '<span class="val">100%</span></div>' in html

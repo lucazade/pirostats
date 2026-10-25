@@ -280,12 +280,11 @@ def page_inner(page: Page, idx: int, n: int, min_width: int = 0) -> str:
 
 
 def title_html(page: Page) -> str:
-    """Page title rendered exactly like a full-view section header: left-aligned
-    .title span over the full-width .title-rule bar. Uppercased to match the
-    section titles (Qt's RichText has no text-transform, so do it here)."""
+    """Page title rendered exactly like a full-view section header: a left-aligned,
+    underlined .title span. Uppercased to match the section titles (Qt's RichText
+    has no text-transform, so do it here)."""
     label = html.escape(page.label.upper())
-    return (f'<div><span class="title">{label}</span></div>'
-            f'<div width="100%" class="title-rule">&nbsp;</div>')
+    return f'<div><span class="title">{label}</span></div>'
 
 
 def pager_html(idx: int, width: int, n: int) -> str:
