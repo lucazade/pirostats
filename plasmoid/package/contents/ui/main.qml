@@ -757,7 +757,7 @@ PlasmoidItem {
 			textFormat: Text.RichText
 			wrapMode: Text.NoWrap
 			elide: Text.ElideNone
-			font.pointSize: plasmoid.configuration.useTooltipFontSize ? plasmoid.configuration.tooltipFontSize : plasmoid.configuration.fontSize
+			font.pointSize: (onDesktop || plasmoid.configuration.useTooltipFontSize) ? plasmoid.configuration.tooltipFontSize : plasmoid.configuration.fontSize
 			font.family: widget.textFamily
 			font.weight: plasmoid.configuration.bold ? Font.Bold : Font.Normal
 			font.italic: plasmoid.configuration.italic
@@ -789,7 +789,7 @@ PlasmoidItem {
 			horizontalAlignment: Text.AlignLeft
 			wrapMode: Text.NoWrap
 			elide: Text.ElideNone
-			font.pointSize: plasmoid.configuration.useTooltipFontSize ? plasmoid.configuration.tooltipFontSize : plasmoid.configuration.fontSize
+			font.pointSize: (onDesktop || plasmoid.configuration.useTooltipFontSize) ? plasmoid.configuration.tooltipFontSize : plasmoid.configuration.fontSize
 			font.family: widget.textFamily
 			font.weight: plasmoid.configuration.bold ? Font.Bold : Font.Normal
 			font.italic: plasmoid.configuration.italic

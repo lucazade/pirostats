@@ -33,15 +33,20 @@ LibConfig.FormKCM {
 	}
 
 	// ── Panel ─────────────────────────────────────────────────
+	// Panel and Tooltip sizes mean nothing for a widget on the desktop, which has
+	// its own sizes in the Desktop section below.
 	LibConfig.Heading {
+		visible: !root.onDesktop
 		text: i18n("Panel")
 	}
 	LibConfig.SpinBox {
+		visible: !root.onDesktop
 		Kirigami.FormData.label: i18n("Font Size:")
 		configKey: 'fontSize'
 		suffix: i18n("px")
 	}
 	LibConfig.SpinBox {
+		visible: !root.onDesktop
 		Kirigami.FormData.label: i18n("Line Height:")
 		configKey: 'panelLineHeight'
 		decimals: 2
@@ -52,9 +57,11 @@ LibConfig.FormKCM {
 
 	// ── Tooltip ───────────────────────────────────────────────
 	LibConfig.Heading {
+		visible: !root.onDesktop
 		text: i18n("Tooltip")
 	}
 	RowLayout {
+		visible: !root.onDesktop
 		Kirigami.FormData.label: i18n("Font Size:")
 		spacing: 0
 		LibConfig.CheckBox {
@@ -66,6 +73,7 @@ LibConfig.FormKCM {
 		}
 	}
 	LibConfig.SpinBox {
+		visible: !root.onDesktop
 		Kirigami.FormData.label: i18n("Line Height:")
 		configKey: 'tooltipLineHeight'
 		decimals: 2
@@ -83,27 +91,46 @@ LibConfig.FormKCM {
 		visible: root.onDesktop
 		text: i18n("Desktop")
 	}
+	// The desktop widget draws with the tooltip's size and line height: the same
+	// keys, shown once.
+	LibConfig.SpinBox {
+		visible: root.onDesktop
+		Kirigami.FormData.label: i18n("Font Size:")
+		configKey: 'tooltipFontSize'
+		suffix: i18n("px")
+	}
+	LibConfig.SpinBox {
+		visible: root.onDesktop
+		Kirigami.FormData.label: i18n("Line Height:")
+		configKey: 'tooltipLineHeight'
+		decimals: 2
+		minimumValue: 0.5
+		maximumValue: 3.0
+		stepSize: 5
+	}
 	LibConfig.CheckBox {
 		visible: root.onDesktop
 		Kirigami.FormData.label: i18n("Background:")
 		configKey: 'showBackground'
 		text: i18n("Solid panel behind the widget")
 	}
+	// Text color and halo exist for the transparent look only: with a solid panel
+	// the daemon's own colors stand and the halo is not drawn.
 	LibConfig.ColorField {
-		visible: root.onDesktop
-		Kirigami.FormData.label: i18n("Text color (no background):")
+		visible: root.onDesktop && !plasmoid.configuration.showBackground
+		Kirigami.FormData.label: i18n("Text color:")
 		configKey: 'desktopTextColor'
 		defaultColor: '#ffffff'
 		showAlphaChannel: false
 	}
 	LibConfig.CheckBox {
-		visible: root.onDesktop
+		visible: root.onDesktop && !plasmoid.configuration.showBackground
 		Kirigami.FormData.label: i18n("Outline:")
 		configKey: 'desktopOutline'
 		text: i18n("Halo around the text")
 	}
 	LibConfig.ColorField {
-		visible: root.onDesktop
+		visible: root.onDesktop && !plasmoid.configuration.showBackground && plasmoid.configuration.desktopOutline
 		Kirigami.FormData.label: i18n("Outline color:")
 		configKey: 'desktopOutlineColor'
 		defaultColor: '#000000'

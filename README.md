@@ -38,7 +38,8 @@ there are **zero process forks in the hot path**.
   conky-style readout. Choose Plasma's background or keep it transparent on the
   wallpaper, pick the text and outline colors for legibility over any image, and
   scroll to page through the views. Set it in the widget's *Appearance* page (the
-  Desktop options appear only when it's on the desktop).
+  Desktop options, with their own font size, appear only when it's on the desktop;
+  the text and outline colors only with the transparent look).
 - **Auto light/dark** — follows the Plasma color scheme, hot-reloaded.
 - **Per-machine overrides** — sensor mappings and item tweaks auto-detected from
   the DMI board/product name, so one config works across all your machines.
