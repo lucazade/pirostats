@@ -9,13 +9,14 @@
 		     two `cat`s and the runtime path are derived in main.qml (`config.runtimeDir`)
 		     rather than defaulted here — $XDG_RUNTIME_DIR/pirostats isn't knowable when
 		     the package is built, and the daemon derives the same path independently. -->
-		<!-- PiroStats defaults: a Nerd Font mono is required for the glyphs;
-		     override any of these in the Appearance page. -->
+		<!-- PiroStats defaults; override any of these in the Appearance page. The
+		     font is empty = the fixed-width font of the KDE font settings (the
+		     glyphs need a Nerd Font, which Qt picks as fallback if one is installed). -->
 		<entry name="fontSize" type="int">
 			<default>8</default>
 		</entry>
 		<entry name="fontFamily" type="string">
-			<default>NotoSansM Nerd Font Mono</default>
+			<default></default>
 		</entry>
 		<entry name="useTooltipFontSize" type="bool">
 			<default>true</default>

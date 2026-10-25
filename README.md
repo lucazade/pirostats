@@ -47,12 +47,40 @@ there are **zero process forks in the hot path**.
 
 - **KDE Plasma 6**
 - **Python 3.11+** (standard library only)
-- A **Nerd Font** for the glyphs (the applet defaults to *NotoSansM Nerd Font Mono*).
-  Pick it in the widget's *Appearance* page.
+- A **monospace font**, ideally a **Nerd Font** (see [Fonts](#fonts)).
 - Optional, per page/sensor: ss (iproute2) for the connections page, fastfetch
   for system info; psutil, pynvml (NVIDIA), and UPower/UDisks2 (via GDBus) for
   the corresponding hardware. AMD GPUs need nothing extra — they are read
   straight from `amdgpu`'s sysfs.
+
+## Fonts
+
+PiroStats needs a **monospace** font, and a **Nerd Font** one for the icons: the
+columns are aligned with spaces, so a proportional font breaks the layout, and
+without any Nerd Font installed the icons show as empty boxes.
+
+- By default the widget uses the **fixed-width font set in KDE** (System Settings →
+  Text & Fonts → Fonts → *Fixed width*). If that is already a Nerd Font, there is
+  nothing else to do. A change to that KDE setting reaches the widget when Plasma
+  restarts (log out and in, or `systemctl --user restart plasma-plasmashell`).
+- **Recommended:** install a monospace Nerd Font and select it as KDE's *Fixed width*
+  font, or only for PiroStats in the widget's *Appearance* page, which lists
+  monospace families only. Pick a family whose name ends in **Nerd Font Mono** (the
+  "Mono" variants keep every icon one cell wide; the "Propo" ones do not). On Arch,
+  `pacman -S ttf-noto-nerd` provides *NotoSansM Nerd Font Mono*; other Nerd Font
+  packages and downloads are listed at
+  [nerdfonts.com](https://www.nerdfonts.com/font-downloads).
+- PiroStats does not choose icon fonts itself: for an icon the selected font lacks,
+  the system falls back to any installed Nerd Font. So the icons may show even with
+  a plain monospace font, but the fallback font is the system's pick and its icons
+  can be wider than one cell. Selecting a Nerd Font Mono family avoids that.
+- If the font chosen in *Appearance* is not installed, PiroStats uses the KDE
+  fixed-width font.
+
+**Upgrading:** earlier versions defaulted to *NotoSansM Nerd Font Mono* without saving
+it in the widget's settings. The default is now the KDE fixed-width font, so after
+upgrading the widget may change font. To get the previous look, select the font
+again in the widget's *Appearance* page.
 
 ## Install
 
